@@ -7312,6 +7312,13 @@ test("the chrome's queued anchor agrees with the server's transcript anchor for 
     },
     {
       prompt: "note",
+      selector: "section > button",
+      tag: "sketch",
+      text: "rectangle",
+      target: { type: "sketch", sketchIds: ["r1"], label: "rectangle", bounds: {} },
+    },
+    {
+      prompt: "note",
       selector: "",
       tag: "layout-warnings",
       text: "2 layout issues",
@@ -8982,4 +8989,81 @@ test("whiteboard init flags libraries that changed between the libraries and sou
   });
   assert.equal(failed.librariesUnavailable, true);
   assert.equal(JSON.stringify(failed.libraries), "[]");
+});
+
+test("a comment on a selected sketch queues a sketch-anchored prompt with its PNG and the element it marks", async () => {
+  const requests = [];
+  const chrome = await createChromeHarness({
+    fetchImpl: async (url, init) => {
+      requests.push({ url: String(url), method: init?.method || "GET" });
+      if (String(url).includes("/whiteboard-channel")) return { ok: true, json: async () => ({}) };
+      if (String(url).endsWith("/whiteboard/sketch")) return { ok: true, json: async () => ({ whiteboard: null }) };
+      if (String(url).endsWith("/attachments")) {
+        return { ok: true, json: async () => ({ attachment: { id: "b".repeat(64) + ".png" } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    },
+  });
+  const sketchFrame = chrome.element("sketchFrame");
+  // The served page declares the layer hidden; it loads only on demand.
+  sketchFrame.hidden = true;
+  const posted = [];
+  sketchFrame.contentWindow = { postMessage: (message) => posted.push(message) };
+  const sketch = { source: sketchFrame.contentWindow };
+
+  chrome.element("sketchSwitch").onclick();
+  assert.equal(chrome.element("sketchSwitch")["aria-pressed"], "true");
+  assert.match(sketchFrame.src, /^\/whiteboard-frame\?sketch=1&key=abc$/);
+
+  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  const init = posted.find((message) => message.type === "lavish-sketch:init");
+  assert.equal(init.channelId, "tok");
+  assert.equal(init.active, true);
+
+  // A forged comment without the channel is ignored.
+  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:comment", comment: "forged" });
+  chrome.sendInlineWhiteboardMessage(sketch, {
+    type: "lavish-sketch:comment",
+    channelId: "tok",
+    comment: "Make this the primary plan",
+    ids: ["r1"],
+    label: "rectangle",
+    bounds: { x: 690, y: 430, width: 180, height: 65 },
+    point: { x: 780, y: 462 },
+    png: new Uint8Array([137, 80, 78, 71]),
+  });
+  await flushPromises();
+  const hitTest = chrome.postedToFrame.find((message) => message.type === "lavish:sketchHitTest");
+  assert.deepEqual({ x: hitTest.x, y: hitTest.y }, { x: 780, y: 462 });
+  chrome.sendFrameMessage({
+    type: "lavish:sketchHitTestResult",
+    request_id: hitTest.request_id,
+    target: { uid: "4", selector: "section > button", tag: "button", text: "Choose Business" },
+  });
+  await flushPromises();
+
+  assert.deepEqual(publicQueued(chrome), [
+    {
+      uid: "4",
+      prompt:
+        'Make this the primary plan\n\nSketch: rectangle, marking <button> "Choose Business" (section > button). The attached PNG shows the sketch.',
+      selector: "section > button",
+      tag: "sketch",
+      text: "rectangle",
+      target: {
+        type: "sketch",
+        sketchIds: ["r1"],
+        label: "rectangle",
+        bounds: { x: 690, y: 430, width: 180, height: 65 },
+      },
+      attachments: [{ id: "b".repeat(64) + ".png", name: "sketch.png" }],
+    },
+  ]);
+  assert.deepEqual(
+    posted.filter((message) => message.type === "lavish-sketch:commentResult").map(({ ok }) => ok),
+    [true],
+  );
+  assert.match(chrome.element("queuedLog").innerHTML, /<span class="anchor-kind">sketch<\/span>/);
+  assert.equal(requests.filter((request) => request.url.endsWith("/attachments")).length, 1);
 });

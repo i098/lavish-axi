@@ -8,6 +8,20 @@ import { LIBRARY_REF_CUSTOM_DATA_KEY, mermaidHeaderLine, parseLibraryIconDirecti
 
 export const WHITEBOARD_PROMPT_TAG = "whiteboard";
 export const EXCALIDRAW_SCENE_TARGET_TYPE = "excalidraw-scene";
+export const SKETCH_PROMPT_TAG = "sketch";
+export const SKETCH_TARGET_TYPE = "sketch";
+const SKETCH_MAX_IDS = 50;
+const SKETCH_LABEL_MAX = 120;
+const SKETCH_MAX_COORD = 1_000_000;
+const SKETCH_KIND_NAMES = {
+  freedraw: "freehand line",
+  arrow: "arrow",
+  line: "line",
+  rectangle: "rectangle",
+  ellipse: "ellipse",
+  diamond: "diamond",
+  text: "text",
+};
 export const WHITEBOARD_TEXT_METRICS_VERSION = 1;
 
 export const SUMMARY_MAX_LINES = 40;
@@ -1011,5 +1025,74 @@ export function normalizeExcalidrawSceneTarget(target) {
     previewPath: String(target.previewPath || ""),
     imageFallback: Boolean(target.imageFallback),
     stats: Object.fromEntries(STAT_KEYS.map((key) => [key, boundedInt(stats[key])])),
+  };
+}
+
+function sketchKind(element) {
+  return SKETCH_KIND_NAMES[element.type] || "shape";
+}
+
+// One selected sketch in the reviewer's terms: a label for the Conversation anchor, its bounds in
+// page pixels (the sketch layer keeps scene coordinates equal to artifact document coordinates),
+// and the page point it marks - an arrow's tip, otherwise the centre - which the chrome resolves
+// to the artifact element underneath. A bound label is described with its container.
+export function describeSketchSelection(elements, selectedIds) {
+  const live = liveElements(elements);
+  const ids = new Set(Array.isArray(selectedIds) ? selectedIds.map(String) : []);
+  const selected = live.filter((el) => ids.has(el.id) && !(el.type === "text" && el.containerId));
+  if (selected.length === 0) return null;
+  const boundText = boundTextByContainer(live);
+  const boxes = selected.map(elementBounds);
+  const minX = Math.min(...boxes.map((box) => box[0]));
+  const minY = Math.min(...boxes.map((box) => box[1]));
+  const maxX = Math.max(...boxes.map((box) => box[2]));
+  const maxY = Math.max(...boxes.map((box) => box[3]));
+  const single = selected.length === 1 ? selected[0] : null;
+  const singleText = single ? elementLabel(single, boundText) : "";
+  const label = single
+    ? singleText
+      ? `${sketchKind(single)} "${truncate(singleText, 60)}"`
+      : sketchKind(single)
+    : `${selected.length} shapes (${[...new Set(selected.map(sketchKind))].join(", ")})`;
+  const tip = single?.type === "arrow" && Array.isArray(single.points) ? single.points.at(-1) : null;
+  const point = tip
+    ? { x: (Number(single.x) || 0) + (Number(tip[0]) || 0), y: (Number(single.y) || 0) + (Number(tip[1]) || 0) }
+    : { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  return {
+    ids: selected.map((el) => String(el.id)).slice(0, SKETCH_MAX_IDS),
+    label: truncate(label, SKETCH_LABEL_MAX),
+    bounds: {
+      x: Math.round(minX),
+      y: Math.round(minY),
+      width: Math.round(maxX - minX),
+      height: Math.round(maxY - minY),
+    },
+    point: { x: Math.round(point.x), y: Math.round(point.y) },
+  };
+}
+
+// Fixed shape for a sketch target coming back from the browser, like
+// `normalizeExcalidrawSceneTarget`: unknown or hostile fields never reach state.json or the agent.
+export function normalizeSketchTarget(target) {
+  const bounds = target.bounds && typeof target.bounds === "object" ? target.bounds : {};
+  const ids = Array.isArray(target.sketchIds) ? target.sketchIds : [];
+  return {
+    type: SKETCH_TARGET_TYPE,
+    sketchIds: ids
+      .map((id) => String(id).slice(0, 64))
+      .filter(Boolean)
+      .slice(0, SKETCH_MAX_IDS),
+    label: truncate(
+      String(target.label || "")
+        .replace(/\s+/g, " ")
+        .trim(),
+      SKETCH_LABEL_MAX,
+    ),
+    bounds: {
+      x: boundedInt(bounds.x, SKETCH_MAX_COORD),
+      y: boundedInt(bounds.y, SKETCH_MAX_COORD),
+      width: boundedInt(bounds.width, SKETCH_MAX_COORD),
+      height: boundedInt(bounds.height, SKETCH_MAX_COORD),
+    },
   };
 }
