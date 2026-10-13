@@ -360,7 +360,9 @@ export function startSketchFrame() {
     "keydown",
     (event) => {
       if (!isModeToggleHotkeyEvent(event)) return;
+      // Excalidraw binds `I` to its eyedropper, which would swallow the next wheel and drag.
       event.preventDefault();
+      event.stopPropagation();
       post({ type: "lavish-sketch:toggleAnnotationMode" });
     },
     true,
