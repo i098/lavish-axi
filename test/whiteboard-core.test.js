@@ -1173,6 +1173,38 @@ test("describeSketchSelection names one sketch, its page bounds, and the point a
   assert.deepEqual(describeSketchSelection(elements, ["box", "box-label"]).ids, ["box"]);
 });
 
+test("describeSketchSelection marks the tip of a rotated arrow where it is drawn", () => {
+  // Excalidraw turns a linear element about the centre of its points' box: this arrow's tip
+  // starts 100px right of its tail and ends 100px below the centre after a quarter turn.
+  const arrow = {
+    id: "arrow",
+    type: "arrow",
+    x: 300,
+    y: 400,
+    width: 100,
+    height: 0,
+    angle: Math.PI / 2,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  const sketch = describeSketchSelection([arrow], ["arrow"]);
+  assert.deepEqual(sketch.point, { x: 350, y: 450 });
+  assert.deepEqual(sketch.bounds, { x: 350, y: 350, width: 0, height: 100 });
+});
+
+test("describeSketchSelection lists every selected shape so the image covers what the target describes", () => {
+  const elements = Array.from({ length: 60 }, (_, i) => rect(`r${i}`, { x: i * 10, y: 0, width: 5, height: 5 }));
+  const sketch = describeSketchSelection(
+    elements,
+    elements.map((el) => el.id),
+  );
+  assert.equal(sketch.label.startsWith("60 shapes"), true);
+  assert.equal(sketch.ids.length, 60);
+  assert.deepEqual(sketch.bounds, { x: 0, y: 0, width: 595, height: 5 });
+});
+
 test("describeSketchSelection summarizes a multi-selection and ignores deleted or unknown ids", () => {
   const elements = [
     rect("a", { x: 0, y: 0, width: 10, height: 10 }),
@@ -1200,7 +1232,7 @@ test("normalizeSketchTarget strips a browser-supplied sketch target to its fixed
       type: "sketch",
       sketchIds: ["r1", "7", "x".repeat(64)],
       label: "rectangle",
-      bounds: { x: 0, y: 430, width: 1_000_000, height: 65 },
+      bounds: { x: -5, y: 430, width: 1_000_000, height: 65 },
     },
   );
   assert.equal(
@@ -1208,4 +1240,11 @@ test("normalizeSketchTarget strips a browser-supplied sketch target to its fixed
     50,
   );
   assert.equal(normalizeSketchTarget({ label: "y".repeat(500) }).label.length, 120);
+  // A sketch partly past the page's top-left edge keeps its real origin, within the coordinate bound.
+  assert.deepEqual(normalizeSketchTarget({ bounds: { x: -40.4, y: -1e12, width: 10, height: 10 } }).bounds, {
+    x: -40,
+    y: -1_000_000,
+    width: 10,
+    height: 10,
+  });
 });

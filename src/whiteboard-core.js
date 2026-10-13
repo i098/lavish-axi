@@ -216,30 +216,42 @@ const LIBRARY_ICON_ARROW_GAP = 4;
 const LIBRARY_ICON_LABEL_BOTTOM_PADDING = 5;
 const ICON_NODE_CUSTOM_DATA_KEY = "lavishIconNode";
 
-// Axis-aligned bounds as drawn. Excalidraw rotates an element about the
-// centre of its unrotated box (for linear elements, the box of its points).
-function elementBounds(element) {
+// Absolute points of an element: its own points, or the two corners of its box.
+function elementCorners(element) {
   const x = Number(element.x) || 0;
   const y = Number(element.y) || 0;
-  const corners =
-    Array.isArray(element.points) && element.points.length > 0
-      ? element.points.map((point) => [x + (Number(point?.[0]) || 0), y + (Number(point?.[1]) || 0)])
-      : [
-          [x, y],
-          [x + (Number(element.width) || 0), y + (Number(element.height) || 0)],
-        ];
-  const box = [
+  return Array.isArray(element.points) && element.points.length > 0
+    ? element.points.map((point) => [x + (Number(point?.[0]) || 0), y + (Number(point?.[1]) || 0)])
+    : [
+        [x, y],
+        [x + (Number(element.width) || 0), y + (Number(element.height) || 0)],
+      ];
+}
+
+function cornersBox(corners) {
+  return [
     Math.min(...corners.map((c) => c[0])),
     Math.min(...corners.map((c) => c[1])),
     Math.max(...corners.map((c) => c[0])),
     Math.max(...corners.map((c) => c[1])),
   ];
-  const angle = Number(element.angle) || 0;
-  if (angle === 0) return box;
+}
+
+function turnAboutBoxCentre(points, box, angle) {
   const cx = (box[0] + box[2]) / 2;
   const cy = (box[1] + box[3]) / 2;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
+  return points.map(([px, py]) => [cx + (px - cx) * cos - (py - cy) * sin, cy + (px - cx) * sin + (py - cy) * cos]);
+}
+
+// Axis-aligned bounds as drawn. Excalidraw rotates an element about the
+// centre of its unrotated box (for linear elements, the box of its points).
+function elementBounds(element) {
+  const corners = elementCorners(element);
+  const box = cornersBox(corners);
+  const angle = Number(element.angle) || 0;
+  if (angle === 0) return box;
   const outline =
     corners.length > 2
       ? corners
@@ -249,16 +261,7 @@ function elementBounds(element) {
           [box[2], box[3]],
           [box[0], box[3]],
         ];
-  const turned = outline.map(([px, py]) => [
-    cx + (px - cx) * cos - (py - cy) * sin,
-    cy + (px - cx) * sin + (py - cy) * cos,
-  ]);
-  return [
-    Math.min(...turned.map((c) => c[0])),
-    Math.min(...turned.map((c) => c[1])),
-    Math.max(...turned.map((c) => c[0])),
-    Math.max(...turned.map((c) => c[1])),
-  ];
+  return cornersBox(turnAboutBoxCentre(outline, box, angle));
 }
 
 function commonBounds(elements) {
@@ -1008,6 +1011,12 @@ function boundedInt(value, max = 10_000) {
   return Math.min(Math.round(number), max);
 }
 
+function signedBoundedInt(value, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(-max, Math.min(Math.round(number), max));
+}
+
 // Validate and canonicalize an excalidraw-scene target coming back from the
 // browser, mirroring `normalizeMermaidNodeTarget`: unknown or hostile fields
 // are stripped to a fixed shape before the target reaches state.json and the
@@ -1053,12 +1062,14 @@ export function describeSketchSelection(elements, selectedIds) {
       ? `${sketchKind(single)} "${truncate(singleText, 60)}"`
       : sketchKind(single)
     : `${selected.length} shapes (${[...new Set(selected.map(sketchKind))].join(", ")})`;
-  const tip = single?.type === "arrow" && Array.isArray(single.points) ? single.points.at(-1) : null;
-  const point = tip
-    ? { x: (Number(single.x) || 0) + (Number(tip[0]) || 0), y: (Number(single.y) || 0) + (Number(tip[1]) || 0) }
-    : { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  let point = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  if (single?.type === "arrow" && Array.isArray(single.points) && single.points.length > 0) {
+    const corners = elementCorners(single);
+    const [[tipX, tipY]] = turnAboutBoxCentre(corners.slice(-1), cornersBox(corners), Number(single.angle) || 0);
+    point = { x: tipX, y: tipY };
+  }
   return {
-    ids: selected.map((el) => String(el.id)).slice(0, SKETCH_MAX_IDS),
+    ids: selected.map((el) => String(el.id)),
     label: truncate(label, SKETCH_LABEL_MAX),
     bounds: {
       x: Math.round(minX),
@@ -1087,9 +1098,10 @@ export function normalizeSketchTarget(target) {
         .trim(),
       SKETCH_LABEL_MAX,
     ),
+    // A sketch can sit partly past the page's top-left edge, so the origin keeps its sign.
     bounds: {
-      x: boundedInt(bounds.x, SKETCH_MAX_COORD),
-      y: boundedInt(bounds.y, SKETCH_MAX_COORD),
+      x: signedBoundedInt(bounds.x, SKETCH_MAX_COORD),
+      y: signedBoundedInt(bounds.y, SKETCH_MAX_COORD),
       width: boundedInt(bounds.width, SKETCH_MAX_COORD),
       height: boundedInt(bounds.height, SKETCH_MAX_COORD),
     },
