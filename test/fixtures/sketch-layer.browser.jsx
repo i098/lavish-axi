@@ -23,12 +23,28 @@ const RECT = {
 };
 
 const fromFrame = [];
+let autoAckSaves = true;
 window.addEventListener("message", (event) => {
   const type = String(event.data?.type || "");
-  if (type === "lavish-sketch:ready" || type === "lavish-sketch:comment" || type === "lavish-sketch:scrollBy") {
+  if (
+    type === "lavish-sketch:ready" ||
+    type === "lavish-sketch:comment" ||
+    type === "lavish-sketch:scrollBy" ||
+    type === "lavish-sketch:save" ||
+    type === "lavish-sketch:draft"
+  ) {
     fromFrame.push(event.data);
   }
+  if (type === "lavish-sketch:save" && autoAckSaves) toChrome({ type: "lavish-sketch:saveResult", ok: true });
 });
+
+function count(type) {
+  return fromFrame.filter((m) => m.type === type).length;
+}
+
+function lastDraft() {
+  return fromFrame.filter((m) => m.type === "lavish-sketch:draft").at(-1)?.draft;
+}
 
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -73,7 +89,7 @@ async function run() {
   const scrolledTop = Math.round(document.querySelector(".sk-comment").getBoundingClientRect().top);
 
   document
-    .querySelector(".excalidraw")
+    .querySelector(".excalidraw__canvas.interactive")
     .dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
   const scrollBy = await until(() => fromFrame.find((m) => m.type === "lavish-sketch:scrollBy"), "wheel relay");
 
@@ -82,10 +98,37 @@ async function run() {
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(textarea, "Make this primary");
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
   await sleep(50);
+  const draftWhileTyping = lastDraft();
+  const scrollBysBefore = count("lavish-sketch:scrollBy");
+  const textareaWheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
+  textarea.dispatchEvent(textareaWheel);
+  await sleep(50);
+  const textareaWheelRelayed = count("lavish-sketch:scrollBy") !== scrollBysBefore || textareaWheel.defaultPrevented;
   document.querySelector(".sk-card .sk-queue").click();
   const comment = await until(() => fromFrame.find((m) => m.type === "lavish-sketch:comment"), "the comment");
   toChrome({ type: "lavish-sketch:commentResult", ok: true });
   await sleep(150);
+  const draftAfterQueue = lastDraft();
+
+  // A failed save is retried, and the scene counts as a draft until a save lands.
+  autoAckSaves = false;
+  const savesBefore = count("lavish-sketch:save");
+  document
+    .querySelector(".excalidraw")
+    .dispatchEvent(new KeyboardEvent("keydown", { key: "a", code: "KeyA", ctrlKey: true, bubbles: true }));
+  document
+    .querySelector(".excalidraw")
+    .dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", code: "Delete", bubbles: true }));
+  await until(() => count("lavish-sketch:save") > savesBefore, "the save after a delete");
+  const deletedSaved = fromFrame
+    .filter((m) => m.type === "lavish-sketch:save")
+    .at(-1)
+    .scene.elements.every((element) => element.isDeleted);
+  toChrome({ type: "lavish-sketch:saveResult", ok: false });
+  await until(() => count("lavish-sketch:save") > savesBefore + 1, "the retried save");
+  const draftWhileUnsaved = lastDraft();
+  toChrome({ type: "lavish-sketch:saveResult", ok: true });
+  await until(() => lastDraft() === false, "the saved scene clearing the draft");
 
   const pngSignature = Array.from(comment.png.slice(0, 4)).join(",");
   return {
@@ -94,6 +137,9 @@ async function run() {
     buttonTop,
     scrolledTop,
     wheelDeltaY: scrollBy.y,
+    textareaWheelRelayed,
+    drafts: { draftWhileTyping, draftAfterQueue, draftWhileUnsaved },
+    deletedSaved,
     comment: {
       text: comment.comment,
       ids: comment.ids,

@@ -4106,6 +4106,7 @@ function setSketchActive(active) {
 function resetSketchLayer() {
   sketchChannelId = "";
   sketchReady = false;
+  sketchFrame.classList.remove("sketch-ready");
   sketchDraft = false;
   sketchFrame.hidden = true;
   sketchFrame.src = "about:blank";
@@ -4130,6 +4131,7 @@ async function initSketchLayer(token) {
     "*",
   );
   sketchReady = true;
+  sketchFrame.classList.add("sketch-ready");
 }
 
 // Which artifact element the sketch marks, asked of the SDK. A slow or silent artifact only
@@ -4637,7 +4639,8 @@ loadFrame();
 function toggleAnnotationMode() {
   if (ended || terminalSubmission) return;
   annotationOverridden = true;
-  annotation = !annotation;
+  annotation = sketchActive || !annotation;
+  if (sketchActive) setSketchActive(false);
   annotationSwitch.setAttribute("aria-pressed", String(annotation));
   postToFrame({ type: "lavish:setAnnotationMode", enabled: annotation });
 }

@@ -9116,11 +9116,52 @@ test("a sketch layer whose handshake fails unloads, and the Sketch switch starts
   channelOk = true;
   chrome.element("sketchSwitch").onclick();
   assert.match(sketchFrame.src, /^\/whiteboard-frame\?sketch=1&key=abc$/);
+  // A frame that has not finished its handshake stays invisible over the artifact.
+  assert.equal(sketchFrame.classList.contains("sketch-ready"), false);
   send({ type: "lavish-sketch:ready", channelToken: "tok-2" });
   await flushPromises();
   const init = posted.find((message) => message.type === "lavish-sketch:init");
   assert.equal(init.channelId, "tok-2");
   assert.equal(init.active, true);
+  assert.equal(sketchFrame.classList.contains("sketch-ready"), true);
+});
+
+test("annotating from sketch mode leaves sketch mode and keeps annotation on", async () => {
+  const { chrome, posted, send } = await sketchHarness(async () => ({
+    ok: true,
+    json: async () => ({ whiteboard: null }),
+  }));
+  const annotate = chrome.element("annotation");
+  const sketchSwitch = chrome.element("sketchSwitch");
+  const modeMessages = () => chrome.postedToFrame.filter((message) => message.type === "lavish:setAnnotationMode");
+  const modesBefore = modeMessages().length;
+  sketchSwitch.onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  // Turning sketch mode on leaves the annotation setting alone.
+  assert.equal(modeMessages().length, modesBefore);
+
+  annotate.click();
+  assert.equal(sketchSwitch["aria-pressed"], "false");
+  assert.equal(annotate["aria-pressed"], "true");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(posted.filter((message) => message.type === "lavish-sketch:setActive").at(-1))),
+    { type: "lavish-sketch:setActive", active: false, channelId: "tok" },
+  );
+
+  // The hotkey relayed from the focused sketch layer does the same, and from annotation off it
+  // turns annotation on.
+  annotate.click();
+  assert.equal(annotate["aria-pressed"], "false");
+  sketchSwitch.onclick();
+  send({ type: "lavish-sketch:toggleAnnotationMode", channelId: "tok" });
+  assert.equal(sketchSwitch["aria-pressed"], "false");
+  assert.equal(annotate["aria-pressed"], "true");
+  assert.equal(chrome.postedToFrame.at(-1).enabled, true);
+
+  // Outside sketch mode the switch still toggles.
+  annotate.click();
+  assert.equal(annotate["aria-pressed"], "false");
 });
 
 test("a sketch layer whose saved scene cannot be read never starts with an empty scene", async () => {

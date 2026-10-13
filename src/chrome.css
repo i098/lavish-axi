@@ -1078,6 +1078,9 @@ body.sketch-active .frame iframe.sketch-layer {
 .frame iframe.sketch-layer[hidden] {
   display: none;
 }
+.frame iframe.sketch-layer:not(.sketch-ready) {
+  visibility: hidden;
+}
 .panel {
   width: var(--panel-w);
   border-left: var(--hairline-subtle);
