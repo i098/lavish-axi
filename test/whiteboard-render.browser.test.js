@@ -225,6 +225,8 @@ test("the sketch layer turns a selected sketch into a page-anchored comment", { 
   // A comment being written, and a scene whose save failed, both hold back a restart reload.
   assert.deepEqual(result.drafts, { draftWhileTyping: true, draftAfterQueue: false, draftWhileUnsaved: true });
   assert.equal(result.deletedSaved, true);
+  // The annotate hotkey reaches the chrome, not Excalidraw's `I` eyedropper.
+  assert.deepEqual(result.hotkey, { toggled: 1, editorSawHotkey: 0 });
   assert.deepEqual(result.comment, {
     text: "Make this primary",
     ids: ["box"],

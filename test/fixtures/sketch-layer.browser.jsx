@@ -31,7 +31,8 @@ window.addEventListener("message", (event) => {
     type === "lavish-sketch:comment" ||
     type === "lavish-sketch:scrollBy" ||
     type === "lavish-sketch:save" ||
-    type === "lavish-sketch:draft"
+    type === "lavish-sketch:draft" ||
+    type === "lavish-sketch:toggleAnnotationMode"
   ) {
     fromFrame.push(event.data);
   }
@@ -130,6 +131,19 @@ async function run() {
   toChrome({ type: "lavish-sketch:saveResult", ok: true });
   await until(() => lastDraft() === false, "the saved scene clearing the draft");
 
+  // The annotate hotkey toggles modes in the chrome and never reaches Excalidraw's container
+  // listener, whose `I` arms the eyedropper and swallows the next wheel and drag. The headless
+  // window is mobile-sized, where Excalidraw hides the eyedropper, so watch the delivery instead.
+  const editor = document.querySelector(".excalidraw");
+  let editorSawHotkey = 0;
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "i") editorSawHotkey += 1;
+  });
+  const togglesBefore = count("lavish-sketch:toggleAnnotationMode");
+  editor.dispatchEvent(new KeyboardEvent("keydown", { key: "i", code: "KeyI", ctrlKey: true, bubbles: true }));
+  await sleep(50);
+  const hotkey = { toggled: count("lavish-sketch:toggleAnnotationMode") - togglesBefore, editorSawHotkey };
+
   const pngSignature = Array.from(comment.png.slice(0, 4)).join(",");
   return {
     pass: true,
@@ -140,6 +154,7 @@ async function run() {
     textareaWheelRelayed,
     drafts: { draftWhileTyping, draftAfterQueue, draftWhileUnsaved },
     deletedSaved,
+    hotkey,
     comment: {
       text: comment.comment,
       ids: comment.ids,
