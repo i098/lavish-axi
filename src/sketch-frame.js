@@ -34,8 +34,8 @@ const state = {
   reportedDraft: false,
   /** @type {null | ((active: boolean) => void)} */
   setActive: null,
-  /** @type {null | ((result: { ok: boolean, error?: string }) => void)} */
-  onCommentResult: null,
+  /** @type {Map<string, (result: { ok: boolean, error?: string }) => void>} */
+  commentResults: new Map(),
   /** @type {null | (() => void)} */
   onScroll: null,
 };
@@ -61,6 +61,13 @@ function isEditing(appState) {
   return Boolean(
     appState.cursorButton === "down" || appState.newElement || appState.multiElement || appState.editingTextElement,
   );
+}
+
+// Each queue attempt owns one chrome-side feedback preparation; the id ties its prepare, release,
+// comment, and result together, so overlapping attempts never take each other's.
+let nextAttempt = 0;
+function mintAttemptId() {
+  return "a" + ++nextAttempt + "-" + Math.random().toString(36).slice(2, 8);
 }
 
 function reportDraft() {
@@ -155,19 +162,20 @@ function CommentCard({ sketch, onClose }) {
     if (!comment || busy) return;
     setBusy(true);
     setError("");
+    const attemptId = mintAttemptId();
     try {
       // Tell the chrome a comment is coming before the slow export, so Send & End waits for it.
-      post({ type: "lavish-sketch:prepare" });
+      post({ type: "lavish-sketch:prepare", attemptId });
       let png;
       try {
         png = await selectionPng(sketch.ids);
       } catch (failure) {
-        post({ type: "lavish-sketch:release" });
+        post({ type: "lavish-sketch:release", attemptId });
         throw failure;
       }
       const result = await new Promise((resolve) => {
-        state.onCommentResult = resolve;
-        post({ type: "lavish-sketch:comment", comment, ...sketch, png });
+        state.commentResults.set(attemptId, resolve);
+        post({ type: "lavish-sketch:comment", attemptId, comment, ...sketch, png });
       });
       if (result.ok) {
         onClose();
@@ -345,8 +353,8 @@ export function startSketchFrame() {
       state.onScroll?.();
     }
     if (msg.type === "lavish-sketch:commentResult") {
-      const resolve = state.onCommentResult;
-      state.onCommentResult = null;
+      const resolve = state.commentResults.get(String(msg.attemptId));
+      state.commentResults.delete(String(msg.attemptId));
       resolve?.({ ok: Boolean(msg.ok), error: String(msg.error || "") });
     }
     if (msg.type === "lavish-sketch:saveResult") handleSaveResult(Boolean(msg.ok));
