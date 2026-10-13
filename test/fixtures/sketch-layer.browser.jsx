@@ -114,7 +114,7 @@ async function run() {
   const textareaWheelRelayed = count("lavish-sketch:scrollBy") !== scrollBysBefore || textareaWheel.defaultPrevented;
   document.querySelector(".sk-card .sk-queue").click();
   const comment = await until(() => fromFrame.find((m) => m.type === "lavish-sketch:comment"), "the comment");
-  toChrome({ type: "lavish-sketch:commentResult", ok: true });
+  toChrome({ type: "lavish-sketch:commentResult", attemptId: comment.attemptId, ok: true });
   await sleep(150);
   const draftAfterQueue = lastDraft();
 

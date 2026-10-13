@@ -9043,10 +9043,11 @@ test("a comment on a selected sketch queues a sketch-anchored prompt with its PN
 
   // A forged comment without the channel is ignored.
   chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:comment", comment: "forged" });
-  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:prepare", channelId: "tok" });
+  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:prepare", channelId: "tok", attemptId: "a1" });
   chrome.sendInlineWhiteboardMessage(sketch, {
     type: "lavish-sketch:comment",
     channelId: "tok",
+    attemptId: "a1",
     comment: "Make this the primary plan",
     ids: ["r1"],
     label: "rectangle",
@@ -9103,7 +9104,7 @@ test("Send & End waits for a sketch comment whose PNG is still exporting", async
   await flushPromises();
 
   // The frame reserves the preparation, then spends time exporting the PNG.
-  send({ type: "lavish-sketch:prepare", channelId: "tok" });
+  send({ type: "lavish-sketch:prepare", channelId: "tok", attemptId: "a1" });
   chrome.element("sendAndEnd").click();
   assert.equal(
     chrome.postedToFrame.some((message) => message.type === "lavish:requestSnapshot"),
@@ -9113,6 +9114,7 @@ test("Send & End waits for a sketch comment whose PNG is still exporting", async
   send({
     type: "lavish-sketch:comment",
     channelId: "tok",
+    attemptId: "a1",
     comment: "Keep this sketch",
     ids: ["r1"],
     label: "rectangle",
@@ -9142,13 +9144,83 @@ test("a sketch whose PNG export fails releases the reserved feedback preparation
   send({ type: "lavish-sketch:ready", channelToken: "tok" });
   await flushPromises();
 
-  send({ type: "lavish-sketch:prepare", channelId: "tok" });
+  send({ type: "lavish-sketch:prepare", channelId: "tok", attemptId: "a1" });
   chrome.element("sendAndEnd").click();
   assert.equal(chrome.element("sendAndEnd").disabled, true);
-  send({ type: "lavish-sketch:release", channelId: "tok" });
+  send({ type: "lavish-sketch:release", channelId: "tok", attemptId: "a1" });
   await flushPromises();
 
   assert.equal(chrome.element("sendAndEnd").disabled, false);
+});
+
+async function overlappingSketchHarness() {
+  const harness = await sketchHarness(async (url) => {
+    if (String(url).endsWith("/attachments")) {
+      return { ok: true, json: async () => ({ attachment: { id: "d".repeat(64) + ".png" } }) };
+    }
+    return { ok: true, json: async () => ({ whiteboard: null }) };
+  });
+  const { chrome, send } = harness;
+  chrome.element("sketchSwitch").onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  send({ type: "lavish-sketch:prepare", channelId: "tok", attemptId: "a1" });
+  send({ type: "lavish-sketch:prepare", channelId: "tok", attemptId: "a2" });
+  const comment = (attemptId) => ({
+    type: "lavish-sketch:comment",
+    channelId: "tok",
+    attemptId,
+    comment: "note " + attemptId,
+    ids: ["r1"],
+    label: "rectangle",
+    bounds: { x: 1, y: 2, width: 3, height: 4 },
+    point: { x: 2, y: 3 },
+    png: new Uint8Array([137, 80, 78, 71]),
+  });
+  const answerHitTests = async () => {
+    await flushPromises();
+    for (const hitTest of chrome.postedToFrame.filter((message) => message.type === "lavish:sketchHitTest")) {
+      chrome.sendFrameMessage({ type: "lavish:sketchHitTestResult", request_id: hitTest.request_id, target: null });
+    }
+    await flushPromises();
+  };
+  const results = () =>
+    harness.posted
+      .filter((message) => message.type === "lavish-sketch:commentResult")
+      .map(({ attemptId, ok }) => [attemptId, ok]);
+  return { ...harness, comment, answerHitTests, results };
+}
+
+test("overlapping sketch comments each queue under their own attempt id, in any order", async () => {
+  const { chrome, send, comment, answerHitTests, results } = await overlappingSketchHarness();
+
+  send(comment("a2"));
+  send(comment("a1"));
+  await answerHitTests();
+
+  assert.deepEqual(results().sort(), [
+    ["a1", true],
+    ["a2", true],
+  ]);
+  assert.equal(publicQueued(chrome).length, 2);
+});
+
+test("releasing one sketch attempt keeps the other attempt's reservation", async () => {
+  const { chrome, send, comment, answerHitTests, results } = await overlappingSketchHarness();
+
+  send({ type: "lavish-sketch:release", channelId: "tok", attemptId: "a1" });
+  chrome.element("sendAndEnd").click();
+  // a2 is still being prepared, so the end waits for it.
+  assert.equal(
+    chrome.postedToFrame.some((message) => message.type === "lavish:requestSnapshot"),
+    false,
+  );
+
+  send(comment("a2"));
+  await answerHitTests();
+
+  assert.deepEqual(results(), [["a2", true]]);
+  assert.equal(publicQueued(chrome).length, 1);
 });
 
 async function sketchHarness(fetchImpl) {
