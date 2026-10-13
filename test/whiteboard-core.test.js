@@ -1205,6 +1205,19 @@ test("describeSketchSelection lists every selected shape so the image covers wha
   assert.deepEqual(sketch.bounds, { x: 0, y: 0, width: 595, height: 5 });
 });
 
+test("describeSketchSelection and normalizeSketchTarget agree on a selection above the id cap", () => {
+  const elements = Array.from({ length: 1200 }, (_, i) => rect(`r${i}`, { x: i * 10, y: 0, width: 5, height: 5 }));
+  const sketch = describeSketchSelection(
+    elements,
+    elements.map((el) => el.id),
+  );
+  assert.equal(sketch.ids.length, 1000);
+  assert.equal(sketch.label.startsWith("1000 shapes"), true);
+  assert.deepEqual(sketch.bounds, { x: 0, y: 0, width: 9995, height: 5 });
+  const target = normalizeSketchTarget({ sketchIds: sketch.ids, bounds: sketch.bounds });
+  assert.deepEqual(target.sketchIds, sketch.ids);
+});
+
 test("describeSketchSelection summarizes a multi-selection and ignores deleted or unknown ids", () => {
   const elements = [
     rect("a", { x: 0, y: 0, width: 10, height: 10 }),
@@ -1236,8 +1249,8 @@ test("normalizeSketchTarget strips a browser-supplied sketch target to its fixed
     },
   );
   assert.equal(
-    normalizeSketchTarget({ sketchIds: Array.from({ length: 80 }, (_, i) => `id${i}`) }).sketchIds.length,
-    50,
+    normalizeSketchTarget({ sketchIds: Array.from({ length: 1200 }, (_, i) => `id${i}`) }).sketchIds.length,
+    1000,
   );
   assert.equal(normalizeSketchTarget({ label: "y".repeat(500) }).label.length, 120);
   // A sketch partly past the page's top-left edge keeps its real origin, within the coordinate bound.

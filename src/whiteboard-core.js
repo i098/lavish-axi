@@ -9,7 +9,7 @@ import { LIBRARY_REF_CUSTOM_DATA_KEY, mermaidHeaderLine, parseLibraryIconDirecti
 export const WHITEBOARD_PROMPT_TAG = "whiteboard";
 export const EXCALIDRAW_SCENE_TARGET_TYPE = "excalidraw-scene";
 export const SKETCH_TARGET_TYPE = "sketch";
-const SKETCH_MAX_IDS = 50;
+const SKETCH_MAX_IDS = 1000;
 const SKETCH_LABEL_MAX = 120;
 const SKETCH_MAX_COORD = 1_000_000;
 const SKETCH_KIND_NAMES = {
@@ -1047,7 +1047,9 @@ function sketchKind(element) {
 export function describeSketchSelection(elements, selectedIds) {
   const live = liveElements(elements);
   const ids = new Set(Array.isArray(selectedIds) ? selectedIds.map(String) : []);
-  const selected = live.filter((el) => ids.has(el.id) && !(el.type === "text" && el.containerId));
+  const selected = live
+    .filter((el) => ids.has(el.id) && !(el.type === "text" && el.containerId))
+    .slice(0, SKETCH_MAX_IDS);
   if (selected.length === 0) return null;
   const boundText = boundTextByContainer(live);
   const boxes = selected.map(elementBounds);
