@@ -249,7 +249,8 @@ pnpm link
   Lavish only reads that directory and never downloads libraries. Files over 10 MB, more than 25 MB or 5,000 items in total, and unreadable files are skipped; `lavish-axi libraries` lists each skip with its reason.
   Each library carries its author's terms (AWS Architecture Icons, for example, are covered by AWS's own usage terms), so check them before using one.
 - **Sketches** - Turn on the **Sketch** switch in the toolbar to draw on the artifact with Excalidraw's tools: freehand lines, rectangles, ellipses, arrows, lines, and text.
-  Sketches stay on the content they were drawn over while the page scrolls, stay visible when sketch mode is off, and autosave locally per session, so they come back when the review reopens.
+  Sketches follow the page (window) scroll, so they stay on the content they were drawn over. On a page that scrolls an inner container instead, sketches stay fixed to the viewport.
+  Sketches stay visible when sketch mode is off and autosave locally per session, so they come back when the review reopens.
   Sketch positions are page coordinates, so a sketch drawn at one window width can sit over different content at another width or after the agent changes the layout.
   Select a sketch (or several) and press **Comment** to queue a note anchored to that sketch. The agent receives your words, the page element under the sketch (an arrow's tip, otherwise its centre), the sketch's page bounds, and a PNG of the sketch as an image attachment.
   The saved artifact never changes: sketches live only in Lavish's state directory and are never exported or shared.
