@@ -9015,6 +9015,7 @@ test("a comment on a selected sketch queues a sketch-anchored prompt with its PN
 
   // A forged comment without the channel is ignored.
   chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:comment", comment: "forged" });
+  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:prepare", channelId: "tok" });
   chrome.sendInlineWhiteboardMessage(sketch, {
     type: "lavish-sketch:comment",
     channelId: "tok",
@@ -9058,6 +9059,68 @@ test("a comment on a selected sketch queues a sketch-anchored prompt with its PN
   );
   assert.match(chrome.element("queuedLog").innerHTML, /<span class="anchor-kind">sketch<\/span>/);
   assert.equal(requests.filter((request) => request.url.endsWith("/attachments")).length, 1);
+});
+
+test("Send & End waits for a sketch comment whose PNG is still exporting", async () => {
+  const posts = [];
+  const { chrome, send } = await sketchHarness(async (url, init = {}) => {
+    posts.push({ url: String(url), body: String(url).endsWith("/prompts") ? JSON.parse(init.body) : null });
+    if (String(url).endsWith("/attachments")) {
+      return { ok: true, json: async () => ({ attachment: { id: "c".repeat(64) + ".png" } }) };
+    }
+    return { ok: true, json: async () => ({ whiteboard: null }) };
+  });
+  chrome.element("sketchSwitch").onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+
+  // The frame reserves the preparation, then spends time exporting the PNG.
+  send({ type: "lavish-sketch:prepare", channelId: "tok" });
+  chrome.element("sendAndEnd").click();
+  assert.equal(
+    chrome.postedToFrame.some((message) => message.type === "lavish:requestSnapshot"),
+    false,
+  );
+
+  send({
+    type: "lavish-sketch:comment",
+    channelId: "tok",
+    comment: "Keep this sketch",
+    ids: ["r1"],
+    label: "rectangle",
+    bounds: { x: 1, y: 2, width: 3, height: 4 },
+    point: { x: 2, y: 3 },
+    png: new Uint8Array([137, 80, 78, 71]),
+  });
+  await flushPromises();
+  const hitTest = chrome.postedToFrame.find((message) => message.type === "lavish:sketchHitTest");
+  chrome.sendFrameMessage({ type: "lavish:sketchHitTestResult", request_id: hitTest.request_id, target: null });
+  await flushPromises();
+  await flushPromises();
+  chrome.sendSnapshot("sketch snapshot");
+  await flushPromises();
+
+  const promptPost = posts.find((post) => post.url.endsWith("/prompts"));
+  assert.equal(promptPost.body.endSession, true);
+  assert.deepEqual(
+    promptPost.body.prompts.map((prompt) => prompt.tag),
+    ["sketch"],
+  );
+});
+
+test("a sketch whose PNG export fails releases the reserved feedback preparation", async () => {
+  const { chrome, send } = await sketchHarness(async () => ({ ok: true, json: async () => ({ whiteboard: null }) }));
+  chrome.element("sketchSwitch").onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+
+  send({ type: "lavish-sketch:prepare", channelId: "tok" });
+  chrome.element("sendAndEnd").click();
+  assert.equal(chrome.element("sendAndEnd").disabled, true);
+  send({ type: "lavish-sketch:release", channelId: "tok" });
+  await flushPromises();
+
+  assert.equal(chrome.element("sendAndEnd").disabled, false);
 });
 
 async function sketchHarness(fetchImpl) {
