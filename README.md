@@ -253,6 +253,7 @@ pnpm link
   Sketches follow the page (window) scroll, so they stay on the content they were drawn over. On a page that scrolls an inner container instead, sketches stay fixed to the viewport.
   Sketches stay visible when sketch mode is off and autosave locally per session, so they come back when the review reopens.
   Sketch positions are page coordinates, so a sketch drawn at one window width can sit over different content at another width or after the agent changes the layout.
+  Sketches are not merged between windows. Each window saves its whole scene, so with two windows open on one review the last save wins.
   Select a sketch (or several) and press **Comment** to queue a note anchored to that sketch. The agent receives your words, the page element under the sketch (an arrow's tip, otherwise its centre), the sketch's page bounds, and a PNG of the sketch as an image attachment.
   The saved artifact never changes: sketches live only in Lavish's state directory and are never exported or shared.
 - **Server cleanup** - The detached server stops after the last session ends when nothing is connected, or after `LAVISH_AXI_IDLE_TIMEOUT_MS` (default 30 minutes) with no browser or poll connections.
