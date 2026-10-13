@@ -236,4 +236,6 @@ test("the sketch layer turns a selected sketch into a page-anchored comment", { 
   });
   assert.equal(result.pngSignature, "137,80,78,71");
   assert.equal(result.cardClosed, true);
+  // A late success from a cancelled attempt leaves the newer card and its unsent text alone.
+  assert.equal(result.newerCardText, "second note");
 });

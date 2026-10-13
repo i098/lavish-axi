@@ -146,6 +146,14 @@ function CommentCard({ sketch, onClose }) {
   const [error, setError] = React.useState("");
   const inputRef = React.useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   React.useEffect(() => inputRef.current?.focus(), []);
+  // A cancelled card has already closed. Its late success must not close a newer card.
+  const mounted = React.useRef(true);
+  React.useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
   const hasText = Boolean(text.trim());
   React.useEffect(() => {
     if (!hasText) return undefined;
@@ -178,7 +186,7 @@ function CommentCard({ sketch, onClose }) {
         post({ type: "lavish-sketch:comment", attemptId, comment, ...sketch, png });
       });
       if (result.ok) {
-        onClose();
+        if (mounted.current) onClose();
         return;
       }
       setError(String(result.error || "Could not queue this comment."));
