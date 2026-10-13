@@ -248,7 +248,7 @@ pnpm link
   Agents run `lavish-axi libraries` to find item refs and can show a flowchart node as one of those icons by adding a `%% lavish-icon <node-id> <library-id>/<item name>` comment to the Mermaid source. Mermaid ignores the comment, so saved, exported, and shared copies, and whiteboards missing that library, show the plain node.
   Lavish only reads that directory and never downloads libraries. Files over 10 MB, more than 25 MB or 5,000 items in total, and unreadable files are skipped; `lavish-axi libraries` lists each skip with its reason.
   Each library carries its author's terms (AWS Architecture Icons, for example, are covered by AWS's own usage terms), so check them before using one.
-- **Sketches** - Turn on the **Sketch** switch in the toolbar to draw on the artifact with Excalidraw's tools: freehand lines, rectangles, ellipses, arrows, lines, and text.
+- **Sketches** - Turn on the **Sketch** switch in the toolbar to draw on the artifact with Excalidraw's tools: freehand lines, rectangles, ellipses, arrows, lines, and text. In sketch mode, the annotate switch or Cmd+I / Ctrl+I leaves sketch mode and turns annotate mode on.
   Sketches follow the page (window) scroll, so they stay on the content they were drawn over. On a page that scrolls an inner container instead, sketches stay fixed to the viewport.
   Sketches stay visible when sketch mode is off and autosave locally per session, so they come back when the review reopens.
   Sketch positions are page coordinates, so a sketch drawn at one window width can sit over different content at another width or after the agent changes the layout.

@@ -343,11 +343,12 @@ export function startSketchFrame() {
     }
     if (msg.type === "lavish-sketch:saveResult") handleSaveResult(Boolean(msg.ok));
   });
-  // The chrome only lets pointer events reach this frame in sketch mode, so every wheel here is
-  // the reviewer scrolling the page under the sketches, never canvas zoom.
+  // The chrome only lets pointer events reach this frame in sketch mode, so every wheel over the
+  // canvas is the reviewer scrolling the page under the sketches, never canvas zoom.
   window.addEventListener(
     "wheel",
     (event) => {
+      if (!(/** @type {any} */ (event.target)?.classList?.contains("excalidraw__canvas"))) return;
       event.preventDefault();
       event.stopPropagation();
       const { x, y } = wheelPixels(event);

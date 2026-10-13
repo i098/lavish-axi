@@ -218,8 +218,13 @@ test("the sketch layer turns a selected sketch into a page-anchored comment", { 
   // Scene coordinates are page coordinates: scrolling the artifact moves the sketch with it.
   assert.equal(result.buttonTop, 300 + 60 - 200 + 18);
   assert.equal(result.scrolledTop, 300 + 60 - 250 + 18);
-  // A wheel over the layer scrolls the page instead of zooming the canvas.
+  // A wheel over the canvas scrolls the page instead of zooming the canvas; a wheel over the
+  // comment card scrolls the card.
   assert.equal(result.wheelDeltaY, 120);
+  assert.equal(result.textareaWheelRelayed, false);
+  // A comment being written, and a scene whose save failed, both hold back a restart reload.
+  assert.deepEqual(result.drafts, { draftWhileTyping: true, draftAfterQueue: false, draftWhileUnsaved: true });
+  assert.equal(result.deletedSaved, true);
   assert.deepEqual(result.comment, {
     text: "Make this primary",
     ids: ["box"],
