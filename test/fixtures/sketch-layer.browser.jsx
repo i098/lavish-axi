@@ -64,6 +64,15 @@ function toChrome(message) {
   window.postMessage({ ...message, channelId: "fixture-token" }, "*");
 }
 
+// Excalidraw's shortcuts take Cmd on macOS and Ctrl elsewhere.
+const SHORTCUT_MODIFIER = /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? { metaKey: true } : { ctrlKey: true };
+
+function selectAll() {
+  document
+    .querySelector(".excalidraw")
+    .dispatchEvent(new KeyboardEvent("keydown", { key: "a", code: "KeyA", ...SHORTCUT_MODIFIER, bubbles: true }));
+}
+
 async function run() {
   startSketchFrame();
   await until(() => fromFrame.find((m) => m.type === "lavish-sketch:ready"), "the ready message");
@@ -78,9 +87,7 @@ async function run() {
   await sleep(300);
 
   // Excalidraw handles keys on its container unless handleKeyboardGlobally is set.
-  document
-    .querySelector(".excalidraw")
-    .dispatchEvent(new KeyboardEvent("keydown", { key: "a", code: "KeyA", ctrlKey: true, bubbles: true }));
+  selectAll();
   const button = await until(() => document.querySelector(".sk-comment"), "the Comment button");
   // Scene y 300..360 at scroll 200 is viewport y 100..160; the button sits just below it.
   const buttonTop = Math.round(button.getBoundingClientRect().top);
@@ -114,9 +121,7 @@ async function run() {
   // A failed save is retried, and the scene counts as a draft until a save lands.
   autoAckSaves = false;
   const savesBefore = count("lavish-sketch:save");
-  document
-    .querySelector(".excalidraw")
-    .dispatchEvent(new KeyboardEvent("keydown", { key: "a", code: "KeyA", ctrlKey: true, bubbles: true }));
+  selectAll();
   document
     .querySelector(".excalidraw")
     .dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", code: "Delete", bubbles: true }));
