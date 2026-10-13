@@ -118,6 +118,27 @@ async function run() {
   await sleep(150);
   const draftAfterQueue = lastDraft();
 
+  // Cancelling a busy card and opening a new one must survive the old attempt succeeding late.
+  selectAll();
+  const typeInto = async (value) => {
+    document.querySelector(".sk-comment").click();
+    const field = await until(() => document.querySelector(".sk-card textarea"), "a comment card");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(field, value);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(50);
+  };
+  await until(() => document.querySelector(".sk-comment"), "the Comment button after queueing");
+  await typeInto("first note");
+  document.querySelector(".sk-card .sk-queue").click();
+  const firstNote = await until(() => fromFrame.find((m) => m.comment === "first note"), "the first note");
+  document.querySelector(".sk-card .sk-cancel").click();
+  await until(() => document.querySelector(".sk-comment"), "the Comment button after cancel");
+  await typeInto("second note");
+  toChrome({ type: "lavish-sketch:commentResult", attemptId: firstNote.attemptId, ok: true });
+  await sleep(150);
+  const newerCardText = document.querySelector(".sk-card textarea")?.value ?? null;
+  document.querySelector(".sk-card .sk-cancel")?.click();
+
   // A failed save is retried, and the scene counts as a draft until a save lands.
   autoAckSaves = false;
   const savesBefore = count("lavish-sketch:save");
@@ -169,6 +190,7 @@ async function run() {
     },
     pngSignature,
     cardClosed: !document.querySelector(".sk-card"),
+    newerCardText,
   };
 }
 
