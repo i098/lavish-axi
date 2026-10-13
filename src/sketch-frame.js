@@ -156,7 +156,15 @@ function CommentCard({ sketch, onClose }) {
     setBusy(true);
     setError("");
     try {
-      const png = await selectionPng(sketch.ids);
+      // Tell the chrome a comment is coming before the slow export, so Send & End waits for it.
+      post({ type: "lavish-sketch:prepare" });
+      let png;
+      try {
+        png = await selectionPng(sketch.ids);
+      } catch (failure) {
+        post({ type: "lavish-sketch:release" });
+        throw failure;
+      }
       const result = await new Promise((resolve) => {
         state.onCommentResult = resolve;
         post({ type: "lavish-sketch:comment", comment, ...sketch, png });

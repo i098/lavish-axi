@@ -4080,6 +4080,8 @@ let sketchActive = false;
 let sketchChannelId = "";
 let sketchReady = false;
 let sketchDraft = false;
+/** @type {FeedbackPreparation | null} */
+let sketchPreparation = null;
 let nextSketchHitTestId = 0;
 const sketchHitTests = new Map();
 
@@ -4104,6 +4106,7 @@ function setSketchActive(active) {
 }
 
 function resetSketchLayer() {
+  releaseSketchPreparation();
   sketchChannelId = "";
   sketchReady = false;
   sketchFrame.classList.remove("sketch-ready");
@@ -4173,13 +4176,23 @@ function sketchPromptText(comment, label, hit, bounds) {
   return comment + "\n\nSketch: " + label + ", " + where + ". The attached PNG shows the sketch.";
 }
 
+// The frame reserves a feedback preparation before it exports the PNG, so a Send & End during the
+// export waits for the comment instead of leaving it behind. The comment, or a release when the
+// export fails, settles it.
+function releaseSketchPreparation() {
+  sketchPreparation?.finish(false);
+  sketchPreparation = null;
+}
+
 async function queueSketchComment(message) {
   const reply = (ok, error = "") => postToSketch({ type: "lavish-sketch:commentResult", ok, error });
   const comment = String(message.comment || "")
     .trim()
     .slice(0, 4000);
-  const preparation = comment ? beginFeedbackPreparation() : null;
-  if (!preparation) {
+  const preparation = sketchPreparation;
+  sketchPreparation = null;
+  if (!preparation || !comment) {
+    preparation?.finish(false);
     reply(false, comment ? "Feedback delivery is already ending this review." : "Write a comment first.");
     return;
   }
@@ -4259,6 +4272,11 @@ function handleSketchMessage(message) {
   if (message.type === "lavish-sketch:scrollBy") {
     postToFrame({ type: "lavish:scrollBy", x: Number(message.x) || 0, y: Number(message.y) || 0 });
   }
+  if (message.type === "lavish-sketch:prepare") {
+    releaseSketchPreparation();
+    sketchPreparation = beginFeedbackPreparation();
+  }
+  if (message.type === "lavish-sketch:release") releaseSketchPreparation();
   if (message.type === "lavish-sketch:comment") queueSketchComment(message);
   if (message.type === "lavish-sketch:toggleAnnotationMode") toggleAnnotationMode();
 }
