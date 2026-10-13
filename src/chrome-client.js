@@ -1210,7 +1210,7 @@ function setReviewState(state) {
 }
 
 function hasUnsentDraft() {
-  if (editingPromptId) return true;
+  if (editingPromptId || sketchDraft) return true;
   return Boolean(lastReviewState && lastReviewState.card && String(lastReviewState.card.text || "").trim());
 }
 
@@ -4079,6 +4079,7 @@ const SKETCH_HIT_TEST_TIMEOUT_MS = 1500;
 let sketchActive = false;
 let sketchChannelId = "";
 let sketchReady = false;
+let sketchDraft = false;
 let nextSketchHitTestId = 0;
 const sketchHitTests = new Map();
 
@@ -4102,10 +4103,21 @@ function setSketchActive(active) {
   postToSketch({ type: "lavish-sketch:setActive", active: sketchActive });
 }
 
+function resetSketchLayer() {
+  sketchChannelId = "";
+  sketchReady = false;
+  sketchDraft = false;
+  sketchFrame.hidden = true;
+  sketchFrame.src = "about:blank";
+  setSketchActive(false);
+}
+
 async function initSketchLayer(token) {
-  if (!(await authenticateWhiteboardChannel(token)) || sketchChannelId !== token) return;
+  if (!(await authenticateWhiteboardChannel(token))) throw new Error("sketch channel refused");
+  if (sketchChannelId !== token) return;
   const response = await fetch("/api/" + key + "/whiteboard/sketch");
-  const saved = response.ok ? (await response.json()).whiteboard : null;
+  if (!response.ok) throw new Error("could not load sketches");
+  const saved = (await response.json()).whiteboard;
   if (sketchChannelId !== token || !sketchFrame.contentWindow) return;
   sketchFrame.contentWindow.postMessage(
     {
@@ -4224,21 +4236,29 @@ async function queueSketchComment(message) {
 }
 
 function handleSketchMessage(message) {
-  if (ended) return;
   if (message.type === "lavish-sketch:ready") {
     const token = String(message.channelToken || "");
-    if (!token || sketchChannelId) return;
+    if (ended || !token || sketchChannelId) return;
     sketchChannelId = token;
-    initSketchLayer(token).catch(() => {});
+    initSketchLayer(token).catch(() => {
+      if (sketchChannelId === token) resetSketchLayer();
+    });
     return;
   }
   if (!sketchReady || message.channelId !== sketchChannelId) return;
-  if (message.type === "lavish-sketch:save")
-    saveWhiteboardScene("sketch", { scene: message.scene || null }).catch(() => {});
+  if (message.type === "lavish-sketch:save") {
+    saveWhiteboardScene("sketch", { scene: message.scene || null }).then(
+      () => postToSketch({ type: "lavish-sketch:saveResult", ok: true }),
+      () => postToSketch({ type: "lavish-sketch:saveResult", ok: false }),
+    );
+  }
+  if (message.type === "lavish-sketch:draft") sketchDraft = Boolean(message.draft);
+  if (ended) return;
   if (message.type === "lavish-sketch:scrollBy") {
     postToFrame({ type: "lavish:scrollBy", x: Number(message.x) || 0, y: Number(message.y) || 0 });
   }
   if (message.type === "lavish-sketch:comment") queueSketchComment(message);
+  if (message.type === "lavish-sketch:toggleAnnotationMode") toggleAnnotationMode();
 }
 
 sketchSwitch.onclick = () => {

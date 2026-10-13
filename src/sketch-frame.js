@@ -13,9 +13,10 @@ import { Excalidraw, exportToBlob, hashElementsVersion, restore } from "@excalid
 import React from "react";
 import { createRoot } from "react-dom/client";
 
+import { isModeToggleHotkeyEvent } from "./artifact-sdk.js";
 import { describeSketchSelection } from "./whiteboard-core.js";
 
-const SAVE_DEBOUNCE_MS = 800;
+const SAVE_RETRY_MS = 2000;
 // Red reads on light and dark pages alike; the canvas is never theme-inverted, so what the
 // reviewer draws is what the scene stores.
 const SKETCH_STROKE_COLOR = "#e03131";
@@ -25,8 +26,12 @@ const state = {
   /** @type {any} */
   api: null,
   scroll: { x: 0, y: 0 },
-  saveTimer: 0,
+  /** @type {null | number} */
+  saving: null,
   savedVersion: -1,
+  unsaved: false,
+  commentDraft: false,
+  reportedDraft: false,
   /** @type {null | ((active: boolean) => void)} */
   setActive: null,
   /** @type {null | ((result: { ok: boolean, error?: string }) => void)} */
@@ -52,21 +57,44 @@ function liveSelectedIds(appState) {
   return Object.keys(selected).filter((id) => selected[id]);
 }
 
-function scheduleSave(elements) {
+function isEditing(appState) {
+  return Boolean(
+    appState.cursorButton === "down" || appState.newElement || appState.multiElement || appState.editingTextElement,
+  );
+}
+
+function reportDraft() {
+  const draft = state.commentDraft || state.unsaved;
+  if (draft === state.reportedDraft) return;
+  state.reportedDraft = draft;
+  post({ type: "lavish-sketch:draft", draft });
+}
+
+// A finished change saves at once, one save at a time: whatever changes while a save is in flight
+// goes out when the chrome acknowledges it, and a failed save is retried.
+function saveIfChanged() {
+  if (!state.api) return;
+  const elements = state.api.getSceneElementsIncludingDeleted();
   const version = hashElementsVersion(elements);
-  if (version === state.savedVersion) return;
-  window.clearTimeout(state.saveTimer);
-  state.saveTimer = window.setTimeout(() => {
-    if (!state.api) return;
-    state.savedVersion = version;
-    post({
-      type: "lavish-sketch:save",
-      scene: {
-        elements: state.api.getSceneElementsIncludingDeleted().map((element) => JSON.parse(JSON.stringify(element))),
-        files: state.api.getFiles() || {},
-      },
-    });
-  }, SAVE_DEBOUNCE_MS);
+  state.unsaved = version !== state.savedVersion;
+  reportDraft();
+  if (!state.unsaved || state.saving !== null || isEditing(state.api.getAppState())) return;
+  state.saving = version;
+  post({
+    type: "lavish-sketch:save",
+    scene: {
+      elements: elements.map((element) => JSON.parse(JSON.stringify(element))),
+      files: state.api.getFiles() || {},
+    },
+  });
+}
+
+function handleSaveResult(ok) {
+  if (state.saving === null) return;
+  if (ok) state.savedVersion = state.saving;
+  state.saving = null;
+  if (ok) saveIfChanged();
+  else window.setTimeout(saveIfChanged, SAVE_RETRY_MS);
 }
 
 function applyScroll() {
@@ -111,6 +139,16 @@ function CommentCard({ sketch, onClose }) {
   const [error, setError] = React.useState("");
   const inputRef = React.useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   React.useEffect(() => inputRef.current?.focus(), []);
+  const hasText = Boolean(text.trim());
+  React.useEffect(() => {
+    if (!hasText) return undefined;
+    state.commentDraft = true;
+    reportDraft();
+    return () => {
+      state.commentDraft = false;
+      reportDraft();
+    };
+  }, [hasText]);
 
   async function queue() {
     const comment = text.trim();
@@ -182,10 +220,8 @@ function SketchApp({ elements, files, startActive }) {
   document.body.dataset.sketchActive = String(active);
 
   function onChange(sceneElements, appState) {
-    scheduleSave(sceneElements);
-    const busy =
-      appState.cursorButton === "down" || appState.newElement || appState.multiElement || appState.editingTextElement;
-    const next = busy ? null : describeSketchSelection(sceneElements, liveSelectedIds(appState));
+    saveIfChanged();
+    const next = isEditing(appState) ? null : describeSketchSelection(sceneElements, liveSelectedIds(appState));
     setSketch((previous) => {
       if (!next) return null;
       if (previous && JSON.stringify(previous) === JSON.stringify(next)) return previous;
@@ -305,6 +341,7 @@ export function startSketchFrame() {
       state.onCommentResult = null;
       resolve?.({ ok: Boolean(msg.ok), error: String(msg.error || "") });
     }
+    if (msg.type === "lavish-sketch:saveResult") handleSaveResult(Boolean(msg.ok));
   });
   // The chrome only lets pointer events reach this frame in sketch mode, so every wheel here is
   // the reviewer scrolling the page under the sketches, never canvas zoom.
@@ -317,6 +354,15 @@ export function startSketchFrame() {
       post({ type: "lavish-sketch:scrollBy", x, y });
     },
     { capture: true, passive: false },
+  );
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (!isModeToggleHotkeyEvent(event)) return;
+      event.preventDefault();
+      post({ type: "lavish-sketch:toggleAnnotationMode" });
+    },
+    true,
   );
   post({ type: "lavish-sketch:ready" });
 }

@@ -2498,6 +2498,7 @@ export function createArtifactSdk(
     }
     if (msg.type === "lavish:restoreScroll") {
       window.scrollTo(Number(msg.x) || 0, Number(msg.y) || 0);
+      postArtifactMessage("lavish:scroll", { x: window.scrollX, y: window.scrollY });
     }
     // The chrome's sketch layer sits over this frame and keeps its scene in document coordinates:
     // it forwards wheel scrolling here and asks which element a sketch marks.

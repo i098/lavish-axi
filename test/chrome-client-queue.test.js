@@ -5152,7 +5152,7 @@ test("an unrestorable report for a different anchor leaves the stored draft alon
 // interruption is still theirs to choose.
 // The banner this page shows comes from the same shutdown its sibling tabs were told about, so it
 // has to name the same cause - and name none when the event named none.
-async function restartWithUnsentDraft(reason) {
+async function restartWithUnsentDraft(reason, makeDraft) {
   let healthy = false;
   const chrome = await createChromeHarness({
     artifactSrc: "/artifact/abc/index.html",
@@ -5166,11 +5166,15 @@ async function restartWithUnsentDraft(reason) {
     },
   });
 
-  chrome.sendFrameMessage({
-    artifact_load_token: chrome.artifactLoadToken(),
-    type: "lavish:reviewState",
-    state: { card: { selector: "#hero", text: "needs a shorter headline" }, fields: [] },
-  });
+  if (makeDraft) {
+    await makeDraft(chrome);
+  } else {
+    chrome.sendFrameMessage({
+      artifact_load_token: chrome.artifactLoadToken(),
+      type: "lavish:reviewState",
+      state: { card: { selector: "#hero", text: "needs a shorter headline" }, fields: [] },
+    });
+  }
   await flushPromises();
 
   chrome.eventSource().listeners.get("chrome-reload")({
@@ -5212,6 +5216,22 @@ test("the banner a held-back reload shows names the reason the shutdown gave", a
   assert.match(unnamedCopy, /no longer running/);
   assert.doesNotMatch(unnamedCopy, /updated/);
   assert.doesNotMatch(unnamedCopy, /local build/);
+});
+
+test("an unsent sketch comment holds back a restart reload like an annotation draft", async () => {
+  const chrome = await restartWithUnsentDraft("upgrade", async (harness) => {
+    const sketchFrame = harness.element("sketchFrame");
+    sketchFrame.hidden = true;
+    sketchFrame.contentWindow = { postMessage() {} };
+    const sketch = { source: sketchFrame.contentWindow };
+    harness.element("sketchSwitch").onclick();
+    harness.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:ready", channelToken: "tok" });
+    await flushPromises();
+    harness.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:draft", channelId: "tok", draft: true });
+  });
+
+  assert.equal(chrome.reloadCount(), 0);
+  assert.equal(chrome.element("outdatedBanner").hidden, false);
 });
 
 // A full page reload used to destroy an annotation draft: the chrome kept it in memory only,
@@ -9066,4 +9086,82 @@ test("a comment on a selected sketch queues a sketch-anchored prompt with its PN
   );
   assert.match(chrome.element("queuedLog").innerHTML, /<span class="anchor-kind">sketch<\/span>/);
   assert.equal(requests.filter((request) => request.url.endsWith("/attachments")).length, 1);
+});
+
+async function sketchHarness(fetchImpl) {
+  const chrome = await createChromeHarness({ fetchImpl });
+  const sketchFrame = chrome.element("sketchFrame");
+  sketchFrame.hidden = true;
+  const posted = [];
+  sketchFrame.contentWindow = { postMessage: (message) => posted.push(message) };
+  const send = (message) => chrome.sendInlineWhiteboardMessage({ source: sketchFrame.contentWindow }, message);
+  return { chrome, sketchFrame, posted, send };
+}
+
+test("a sketch layer whose handshake fails unloads, and the Sketch switch starts it again", async () => {
+  let channelOk = false;
+  const { chrome, sketchFrame, posted, send } = await sketchHarness(async (url) => {
+    if (String(url).includes("/whiteboard-channel")) return { ok: channelOk, json: async () => ({}) };
+    return { ok: true, json: async () => ({ whiteboard: null }) };
+  });
+
+  chrome.element("sketchSwitch").onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok-1" });
+  await flushPromises();
+  assert.equal(posted.length, 0);
+  // Sketch mode must not leave a dead frame catching every pointer event over the artifact.
+  assert.equal(sketchFrame.hidden, true);
+  assert.equal(chrome.element("sketchSwitch")["aria-pressed"], "false");
+
+  channelOk = true;
+  chrome.element("sketchSwitch").onclick();
+  assert.match(sketchFrame.src, /^\/whiteboard-frame\?sketch=1&key=abc$/);
+  send({ type: "lavish-sketch:ready", channelToken: "tok-2" });
+  await flushPromises();
+  const init = posted.find((message) => message.type === "lavish-sketch:init");
+  assert.equal(init.channelId, "tok-2");
+  assert.equal(init.active, true);
+});
+
+test("a sketch layer whose saved scene cannot be read never starts with an empty scene", async () => {
+  const { sketchFrame, posted, send } = await sketchHarness(async (url) => {
+    if (String(url).endsWith("/whiteboard/sketch")) return { ok: false, json: async () => ({}) };
+    return { ok: true, json: async () => ({}) };
+  });
+  sketchFrame.hidden = false;
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  assert.equal(posted.length, 0);
+  assert.equal(sketchFrame.hidden, true);
+});
+
+test("sketch saves are acknowledged by outcome and still land after the review ends", async () => {
+  let putOk = true;
+  const puts = [];
+  const { chrome, posted, send } = await sketchHarness(async (url, init) => {
+    if (String(url).endsWith("/whiteboard/sketch") && init?.method === "PUT") {
+      puts.push(JSON.parse(init.body).scene);
+      return { ok: putOk, json: async () => ({}) };
+    }
+    return { ok: true, json: async () => ({ whiteboard: null }) };
+  });
+  chrome.element("sketchSwitch").onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  const results = () => posted.filter((message) => message.type === "lavish-sketch:saveResult").map(({ ok }) => ok);
+
+  putOk = false;
+  send({ type: "lavish-sketch:save", channelId: "tok", scene: { elements: [{ id: "a" }] } });
+  await flushPromises();
+  assert.deepEqual(results(), [false]);
+
+  putOk = true;
+  chrome.eventSource().listeners.get("ended")({ data: JSON.stringify({ ended_by: "user" }) });
+  send({ type: "lavish-sketch:save", channelId: "tok", scene: { elements: [{ id: "b" }] } });
+  await flushPromises();
+  assert.deepEqual(results(), [false, true]);
+  assert.deepEqual(
+    puts.map((scene) => scene.elements[0].id),
+    ["a", "b"],
+  );
 });

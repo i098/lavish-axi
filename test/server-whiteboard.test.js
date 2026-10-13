@@ -75,6 +75,7 @@ test("isWhiteboardWriteApiPath matches only whiteboard write routes", () => {
   assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/whiteboard/0"), true);
   assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/whiteboard/12/feedback-files"), true);
   assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/whiteboard/sketch"), true);
+  assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/whiteboard/sketch/feedback-files"), false);
   assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/whiteboard/sketches"), false);
   assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/prompts"), false);
   assert.equal(isWhiteboardWriteApiPath("/api/0123456789abcdef/whiteboard/9999"), false);

@@ -163,7 +163,7 @@ export function defaultWhiteboardAssetsDir() {
 // PNG preview data URL), which outgrow the default 2 MB JSON cap. Only the
 // whiteboard write routes get the larger limit.
 export function isWhiteboardWriteApiPath(pathname) {
-  return /^\/api\/[0-9a-f]{16}\/whiteboard\/(\d{1,3}|sketch)(\/feedback-files)?$/.test(String(pathname || ""));
+  return /^\/api\/[0-9a-f]{16}\/whiteboard\/(\d{1,3}(\/feedback-files)?|sketch)$/.test(String(pathname || ""));
 }
 
 // The attachment upload carries raw image bytes, not JSON, so it bypasses both

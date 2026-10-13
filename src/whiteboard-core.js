@@ -8,7 +8,6 @@ import { LIBRARY_REF_CUSTOM_DATA_KEY, mermaidHeaderLine, parseLibraryIconDirecti
 
 export const WHITEBOARD_PROMPT_TAG = "whiteboard";
 export const EXCALIDRAW_SCENE_TARGET_TYPE = "excalidraw-scene";
-export const SKETCH_PROMPT_TAG = "sketch";
 export const SKETCH_TARGET_TYPE = "sketch";
 const SKETCH_MAX_IDS = 50;
 const SKETCH_LABEL_MAX = 120;
