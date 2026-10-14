@@ -9195,8 +9195,8 @@ test("releasing one sketch attempt keeps the other attempt's reservation", async
   assert.equal(publicQueued(chrome).length, 1);
 });
 
-async function sketchHarness(fetchImpl) {
-  const chrome = await createChromeHarness({ fetchImpl });
+async function sketchHarness(fetchImpl, options = {}) {
+  const chrome = await createChromeHarness({ fetchImpl, ...options });
   const sketchFrame = chrome.element("sketchFrame");
   sketchFrame.hidden = true;
   const posted = [];
@@ -9231,6 +9231,48 @@ test("a sketch layer whose handshake fails unloads, and the Sketch switch starts
   assert.equal(init.channelId, "tok-2");
   assert.equal(init.active, true);
   assert.equal(sketchFrame.classList.contains("sketch-ready"), true);
+});
+
+test("a sketch layer that never became ready loads again when the Sketch switch is turned on after the wait", async () => {
+  const { chrome, sketchFrame, posted, send } = await sketchHarness(
+    async () => ({ ok: true, json: async () => ({ whiteboard: null }) }),
+    { fakeClock: true },
+  );
+  let loads = 0;
+  let src = "";
+  Object.defineProperty(sketchFrame, "src", {
+    get: () => src,
+    set(value) {
+      src = value;
+      loads += 1;
+    },
+  });
+  const sketchSwitch = chrome.element("sketchSwitch");
+
+  sketchSwitch.onclick();
+  assert.equal(loads, 1);
+  // A load still in flight is never restarted: the bundle is several megabytes.
+  sketchSwitch.onclick();
+  sketchSwitch.onclick();
+  assert.equal(loads, 1);
+
+  // The frame never reported ready (stalled or failed bundle). Turning the switch on again starts a new load
+  // instead of leaving a dead layer until the page is reloaded.
+  chrome.advanceClock(20000);
+  sketchSwitch.onclick();
+  sketchSwitch.onclick();
+  assert.equal(loads, 2);
+  assert.equal(sketchSwitch["aria-pressed"], "true");
+
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  assert.equal(posted.find((message) => message.type === "lavish-sketch:init").active, true);
+
+  // A layer that is ready is never reloaded.
+  sketchSwitch.onclick();
+  chrome.advanceClock(20000);
+  sketchSwitch.onclick();
+  assert.equal(loads, 2);
 });
 
 test("annotating from sketch mode leaves sketch mode and keeps annotation on", async () => {

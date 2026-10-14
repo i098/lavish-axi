@@ -4092,8 +4092,14 @@ function postToSketch(message) {
   }
 }
 
+// A load that has not reported ready within this time counts as stalled or failed, and turning the switch on
+// starts it again. The bundle is several megabytes, so a load still in flight is left alone.
+const SKETCH_LOAD_RETRY_MS = 8000;
+let sketchLoadStartedAt = 0;
+
 function loadSketchLayer() {
-  if (!sketchFrame.hidden) return;
+  if (!sketchFrame.hidden && (sketchChannelId || Date.now() - sketchLoadStartedAt < SKETCH_LOAD_RETRY_MS)) return;
+  sketchLoadStartedAt = Date.now();
   sketchFrame.hidden = false;
   sketchFrame.src = "/whiteboard-frame?sketch=1&key=" + encodeURIComponent(key);
 }
