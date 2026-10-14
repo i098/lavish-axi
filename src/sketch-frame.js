@@ -204,6 +204,8 @@ function CommentCard({ sketch, onClose }) {
       ref: inputRef,
       value: text,
       placeholder: "Tell the agent what this sketch means...",
+      // Words typed while Queue runs would miss the captured comment and vanish when the card closes.
+      readOnly: busy,
       onChange: (event) => setText(event.target.value),
       onKeyDown: (event) => {
         if (event.key === "Escape") onClose();
