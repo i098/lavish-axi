@@ -131,6 +131,7 @@ async function run() {
   await typeInto("first note");
   document.querySelector(".sk-card .sk-queue").click();
   const firstNote = await until(() => fromFrame.find((m) => m.comment === "first note"), "the first note");
+  const textareaReadOnlyWhileBusy = document.querySelector(".sk-card textarea").readOnly;
   document.querySelector(".sk-card .sk-cancel").click();
   await until(() => document.querySelector(".sk-comment"), "the Comment button after cancel");
   await typeInto("second note");
@@ -191,6 +192,7 @@ async function run() {
     pngSignature,
     cardClosed: !document.querySelector(".sk-card"),
     newerCardText,
+    textareaReadOnlyWhileBusy,
   };
 }
 
