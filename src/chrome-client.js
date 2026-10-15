@@ -26,6 +26,7 @@ const initialChat = Array.isArray(sessionData.initialChat) ? sessionData.initial
 const initialChatAckIds = Array.isArray(sessionData.initialChatAckIds) ? sessionData.initialChatAckIds : [];
 const initialChatRevision = parseChatRevision(sessionData.initialChatRevision) || 0;
 const MODE_TOGGLE_HOTKEY_KEY = String(sessionData.modeToggleHotkeyKey || "").toLowerCase();
+const SKETCH_TOGGLE_HOTKEY_KEY = String(sessionData.sketchToggleHotkeyKey || "").toLowerCase();
 const attachmentMaxBytes = Number(sessionData.attachmentMaxBytes) || 0;
 const attachmentMaxCount = Number(sessionData.attachmentMaxCount) || 4;
 // Threaded from the server's single accepted-image list, which also drives the
@@ -99,9 +100,9 @@ function describeAttachmentRejection(rejected, caps) {
   return "Not sent — " + detail + ". Remove or fix the image, then send again.";
 }
 
-function isModeToggleHotkeyEvent(event) {
+function isModeToggleHotkeyEvent(event, key = MODE_TOGGLE_HOTKEY_KEY) {
   if (event.shiftKey || event.altKey) return false;
-  return Boolean(event.metaKey || event.ctrlKey) && String(event.key || "").toLowerCase() === MODE_TOGGLE_HOTKEY_KEY;
+  return Boolean(event.metaKey || event.ctrlKey) && String(event.key || "").toLowerCase() === key;
 }
 
 const frame = /** @type {HTMLIFrameElement} */ (document.getElementById("artifact"));
@@ -4295,11 +4296,14 @@ function handleSketchMessage(message) {
   if (message.type === "lavish-sketch:release") releaseSketchPreparation(sketchAttemptId(message));
   if (message.type === "lavish-sketch:comment") queueSketchComment(message);
   if (message.type === "lavish-sketch:toggleAnnotationMode") toggleAnnotationMode();
+  if (message.type === "lavish-sketch:toggleSketchMode") toggleSketchMode();
 }
 
-sketchSwitch.onclick = () => {
+function toggleSketchMode() {
   if (!ended && !terminalSubmission) setSketchActive(!sketchActive);
-};
+}
+
+sketchSwitch.onclick = toggleSketchMode;
 if (sessionData.initialHasSketch && !sessionData.initialEnded) loadSketchLayer();
 
 window.addEventListener("message", (event) => {
@@ -4540,6 +4544,7 @@ window.addEventListener("message", (event) => {
   if (msg.type === "lavish:endSession") endSession();
   if (msg.type === "lavish:revisions") applyRevisionMessage(msg);
   if (msg.type === "lavish:toggleAnnotationMode") toggleAnnotationMode();
+  if (msg.type === "lavish:toggleSketchMode") toggleSketchMode();
   if (msg.type === "lavish:editQueuedAnchor") editQueuedAnchor(String(msg.selector || ""));
 });
 
@@ -4862,6 +4867,15 @@ document.addEventListener(
     if (!isModeToggleHotkeyEvent(event)) return;
     event.preventDefault();
     toggleAnnotationMode();
+  },
+  true,
+);
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (!isModeToggleHotkeyEvent(event, SKETCH_TOGGLE_HOTKEY_KEY)) return;
+    event.preventDefault();
+    toggleSketchMode();
   },
   true,
 );

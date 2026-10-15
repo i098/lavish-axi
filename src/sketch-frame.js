@@ -13,7 +13,7 @@ import { Excalidraw, exportToBlob, hashElementsVersion, restore } from "@excalid
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-import { isModeToggleHotkeyEvent } from "./artifact-sdk.js";
+import { isModeToggleHotkeyEvent, SKETCH_TOGGLE_HOTKEY_KEY } from "./artifact-sdk.js";
 import { describeSketchSelection } from "./whiteboard-core.js";
 
 const SAVE_RETRY_MS = 2000;
@@ -390,6 +390,16 @@ export function startSketchFrame() {
       event.preventDefault();
       event.stopPropagation();
       post({ type: "lavish-sketch:toggleAnnotationMode" });
+    },
+    true,
+  );
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (!isModeToggleHotkeyEvent(event, SKETCH_TOGGLE_HOTKEY_KEY)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      post({ type: "lavish-sketch:toggleSketchMode" });
     },
     true,
   );

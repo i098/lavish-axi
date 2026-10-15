@@ -17,12 +17,13 @@ const servedChromeIds = new Set(
   ),
 );
 
-/** @typedef {{ key: string, file: string, layoutGateEnabled?: boolean, layoutGateMaxHoldMs?: number, modeToggleHotkeyKey?: string, initialChat?: any[], initialChatAckIds?: string[], initialChatRevision?: number, initialLayoutWarnings?: any[], chromeLoadToken?: string, initialArtifactRevision?: number, initialArtifactLoadToken?: string, initialArtifactLoadSequence?: number, attachmentMaxBytes?: number, attachmentMaxCount?: number, attachmentAcceptedMime?: string[], initialEnded?: boolean, initialEndedBy?: string | null, revisionPalette?: { hex: string, borderStyle: string, pattern: string }[] }} HarnessSessionData */
+/** @typedef {{ key: string, file: string, layoutGateEnabled?: boolean, layoutGateMaxHoldMs?: number, modeToggleHotkeyKey?: string, sketchToggleHotkeyKey?: string, initialChat?: any[], initialChatAckIds?: string[], initialChatRevision?: number, initialLayoutWarnings?: any[], chromeLoadToken?: string, initialArtifactRevision?: number, initialArtifactLoadToken?: string, initialArtifactLoadSequence?: number, attachmentMaxBytes?: number, attachmentMaxCount?: number, attachmentAcceptedMime?: string[], initialEnded?: boolean, initialEndedBy?: string | null, revisionPalette?: { hex: string, borderStyle: string, pattern: string }[] }} HarnessSessionData */
 /** @type {HarnessSessionData} */
 const defaultSessionData = {
   key: "abc",
   file: "/tmp/artifact.html",
   modeToggleHotkeyKey: "i",
+  sketchToggleHotkeyKey: ";",
   attachmentAcceptedMime: ["image/png", "image/jpeg", "image/webp"],
 };
 
@@ -9339,6 +9340,61 @@ test("annotating from sketch mode leaves sketch mode and keeps annotation on", a
   // Outside sketch mode the switch still toggles.
   annotate.click();
   assert.equal(annotate["aria-pressed"], "false");
+});
+
+test("Cmd/Ctrl+; toggles sketch mode from the chrome, the artifact SDK and the sketch layer", async () => {
+  const { chrome, posted, send } = await sketchHarness(async () => ({
+    ok: true,
+    json: async () => ({ whiteboard: null }),
+  }));
+  const sketchSwitch = chrome.element("sketchSwitch");
+  const annotate = chrome.element("annotation");
+  annotate.click();
+  const annotationBefore = annotate["aria-pressed"];
+
+  const metaEvent = chrome.dispatchDocumentKeydown({ key: ";", metaKey: true });
+  assert.equal(metaEvent.defaultPrevented, true);
+  assert.equal(sketchSwitch["aria-pressed"], "true");
+
+  const ctrlEvent = chrome.dispatchDocumentKeydown({ key: ";", ctrlKey: true });
+  assert.equal(ctrlEvent.defaultPrevented, true);
+  assert.equal(sketchSwitch["aria-pressed"], "false");
+
+  chrome.sendFrameMessage({ type: "lavish:toggleSketchMode" });
+  assert.equal(sketchSwitch["aria-pressed"], "true");
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  send({ type: "lavish-sketch:toggleSketchMode", channelId: "tok" });
+  assert.equal(sketchSwitch["aria-pressed"], "false");
+  assert.equal(posted.filter((message) => message.type === "lavish-sketch:setActive").at(-1).active, false);
+  send({ type: "lavish-sketch:toggleSketchMode", channelId: "tok" });
+  assert.equal(sketchSwitch["aria-pressed"], "true");
+
+  // The sketch hotkey never touches the annotate switch.
+  assert.equal(annotate["aria-pressed"], annotationBefore);
+});
+
+test("the sketch hotkey ignores plain, shifted and annotate-hotkey keystrokes and an ended session", async () => {
+  const { chrome } = await sketchHarness(async () => ({ ok: true, json: async () => ({ whiteboard: null }) }));
+  const sketchSwitch = chrome.element("sketchSwitch");
+
+  for (const props of [
+    { key: ";" },
+    { key: ";", metaKey: true, shiftKey: true },
+    { key: ";", metaKey: true, altKey: true },
+  ]) {
+    assert.equal(chrome.dispatchDocumentKeydown(props).defaultPrevented, false);
+    assert.notEqual(sketchSwitch["aria-pressed"], "true");
+  }
+  // The annotate hotkey leaves the sketch switch alone.
+  chrome.dispatchDocumentKeydown({ key: "i", metaKey: true });
+  assert.notEqual(sketchSwitch["aria-pressed"], "true");
+
+  chrome.sendFrameMessage({ type: "lavish:endSession" });
+  await flushPromises();
+  chrome.dispatchDocumentKeydown({ key: ";", metaKey: true });
+  chrome.sendFrameMessage({ type: "lavish:toggleSketchMode" });
+  assert.notEqual(sketchSwitch["aria-pressed"], "true");
 });
 
 test("a sketch layer whose saved scene cannot be read never starts with an empty scene", async () => {
