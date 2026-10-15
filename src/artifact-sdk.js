@@ -8,9 +8,12 @@ export const LAVISH_INTERNAL_QUEUE_KEY = "_lavishQueueKey";
 
 export const MODE_TOGGLE_HOTKEY_KEY = "i";
 
-export function isModeToggleHotkeyEvent(event) {
+// Cmd/Ctrl+; toggles Sketch. Not bound by Chrome, Safari or Dia on macOS, nor by Excalidraw.
+export const SKETCH_TOGGLE_HOTKEY_KEY = ";";
+
+export function isModeToggleHotkeyEvent(event, key = MODE_TOGGLE_HOTKEY_KEY) {
   if (event.shiftKey || event.altKey) return false;
-  return Boolean(event.metaKey || event.ctrlKey) && String(event.key || "").toLowerCase() === MODE_TOGGLE_HOTKEY_KEY;
+  return Boolean(event.metaKey || event.ctrlKey) && String(event.key || "").toLowerCase() === key;
 }
 
 // Derive the browser-only replacement key used to collapse unsent updates for the same input.
@@ -2552,6 +2555,15 @@ export function createArtifactSdk(
       if (!isModeToggleHotkeyEvent(event)) return;
       event.preventDefault();
       postArtifactMessage("lavish:toggleAnnotationMode");
+    },
+    true,
+  );
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!isModeToggleHotkeyEvent(event, SKETCH_TOGGLE_HOTKEY_KEY)) return;
+      event.preventDefault();
+      postArtifactMessage("lavish:toggleSketchMode");
     },
     true,
   );
