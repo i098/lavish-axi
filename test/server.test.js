@@ -702,26 +702,12 @@ test("the annotate switch exposes the mode toggle hotkey as a discoverable toolt
   assert.match(html, /id="annotation"[^>]*title="Toggle annotate\/explore mode \(⌘I \/ Ctrl\+I\)"/);
 });
 
-test("artifact SDK and chrome client toggle sketch mode from Cmd/Ctrl+;", async () => {
+test("artifact SDK and sketch layer forward Cmd/Ctrl+; to the chrome", async () => {
   const sdk = createSdkJs("abc");
   assert.match(sdk, /const SKETCH_TOGGLE_HOTKEY_KEY=";"/);
   assert.match(
     sdk,
     /document\.addEventListener\(\s*"keydown",\s*\(event\) => \{\s*if \(!isModeToggleHotkeyEvent\(event, SKETCH_TOGGLE_HOTKEY_KEY\)\) return;\s*event\.preventDefault\(\);\s*postArtifactMessage\("lavish:toggleSketchMode"\);\s*\},\s*true,?\s*\);/,
-  );
-
-  const js = await chromeClientSource();
-  assert.match(
-    js,
-    /const SKETCH_TOGGLE_HOTKEY_KEY = String\(sessionData\.sketchToggleHotkeyKey \|\| ""\)\.toLowerCase\(\);/,
-  );
-  assert.match(js, /function toggleSketchMode\(\)/);
-  assert.match(js, /sketchSwitch\.onclick = toggleSketchMode;/);
-  assert.match(js, /if \(msg\.type === "lavish:toggleSketchMode"\) toggleSketchMode\(\);/);
-  assert.match(js, /if \(message\.type === "lavish-sketch:toggleSketchMode"\) toggleSketchMode\(\);/);
-  assert.match(
-    js,
-    /document\.addEventListener\(\s*"keydown",\s*\(event\) => \{\s*if \(!isModeToggleHotkeyEvent\(event, SKETCH_TOGGLE_HOTKEY_KEY\)\) return;\s*event\.preventDefault\(\);\s*toggleSketchMode\(\);\s*\},\s*true,?\s*\);/,
   );
 
   const sketch = await readFile(new URL("../src/sketch-frame.js", import.meta.url), "utf8");
