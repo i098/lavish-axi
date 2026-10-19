@@ -4649,6 +4649,37 @@ test("check and reload waits for the sketch layer to save and stays open when it
   assert.equal(chrome.reloadCount(), 1);
 });
 
+test("check and reload keeps the page open while a sketch comment is unsent", async () => {
+  const chrome = await createChromeHarness();
+  const sketchFrame = chrome.element("sketchFrame");
+  const posted = [];
+  sketchFrame.contentWindow = { postMessage: (message) => posted.push(message) };
+  const sketch = { source: sketchFrame.contentWindow };
+  chrome.element("sketchSwitch").onclick();
+  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  chrome.sendInlineWhiteboardMessage(sketch, {
+    type: "lavish-sketch:draft",
+    channelId: "tok",
+    draft: true,
+    commentDraft: true,
+  });
+
+  sendChromeOutdated(chrome, "upgrade");
+  chrome.element("outdatedReload").click();
+  await flushPromises();
+  const flush = posted.findLast((message) => message.type === "lavish-whiteboard:flush");
+  chrome.sendInlineWhiteboardMessage(sketch, {
+    type: "lavish-whiteboard:flushComplete",
+    channelId: "tok",
+    flushId: flush.flushId,
+    ok: true,
+  });
+  await flushPromises();
+  assert.equal(chrome.reloadCount(), 0, "saved drawings do not release an unsent comment");
+  assert.match(chrome.element("outdatedText").textContent, /sketch comment is not sent yet/);
+});
+
 // Every sentence has to be true in the case it is shown: a deliberate stop is not an update, and
 // a server that never said why was neither.
 test("the outdated banner says what actually happened to the server", async () => {
