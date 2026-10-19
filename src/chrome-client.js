@@ -319,7 +319,7 @@ const HEALTH_NO_ANSWER_COPY =
   "Lavish did not answer the check, so this page cannot tell whether it is running. Try again in a moment.";
 const SKETCH_UNSAVED_TITLE = "Your sketches or sketch comment are not saved yet.";
 const SKETCH_UNSAVED_COPY =
-  "Lavish could not save your sketches, or a sketch comment is not sent yet, so this page stays open. Send or clear the comment, then try again.";
+  "Lavish could not save your sketches, or a sketch comment is not queued yet, so this page stays open. Queue or cancel the comment, then try again.";
 let artifactLoadToken = "";
 let artifactLoadRevision = Number(sessionData.initialArtifactRevision) || 0;
 let artifactLoadRequestSequence = Number(sessionData.initialArtifactLoadSequence) || 0;

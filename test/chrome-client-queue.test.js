@@ -4677,7 +4677,7 @@ test("check and reload keeps the page open while a sketch comment is unsent", as
   });
   await flushPromises();
   assert.equal(chrome.reloadCount(), 0, "saved drawings do not release an unsent comment");
-  assert.match(chrome.element("outdatedText").textContent, /sketch comment is not sent yet/);
+  assert.match(chrome.element("outdatedText").textContent, /sketch comment is not queued yet/);
 });
 
 // Every sentence has to be true in the case it is shown: a deliberate stop is not an update, and
