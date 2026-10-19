@@ -4613,6 +4613,42 @@ test("an outdated chrome shows a dismissible banner and never reloads itself", a
   assert.equal(chrome.reloadCount(), 1);
 });
 
+test("check and reload waits for the sketch layer to save and stays open when it cannot", async () => {
+  const chrome = await createChromeHarness();
+  const sketchFrame = chrome.element("sketchFrame");
+  sketchFrame.hidden = true;
+  const posted = [];
+  sketchFrame.contentWindow = { postMessage: (message) => posted.push(message) };
+  const sketch = { source: sketchFrame.contentWindow };
+  chrome.element("sketchSwitch").onclick();
+  chrome.sendInlineWhiteboardMessage(sketch, { type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  const flushAnswer = async (ok) => {
+    const flush = posted.findLast((message) => message.type === "lavish-whiteboard:flush");
+    chrome.sendInlineWhiteboardMessage(sketch, {
+      type: "lavish-whiteboard:flushComplete",
+      channelId: "tok",
+      flushId: flush.flushId,
+      ok,
+    });
+    await flushPromises();
+  };
+
+  sendChromeOutdated(chrome, "upgrade");
+  chrome.element("outdatedReload").click();
+  await flushPromises();
+  assert.equal(chrome.reloadCount(), 0, "the reload waits for the sketch save");
+  await flushAnswer(false);
+  assert.equal(chrome.reloadCount(), 0, "a failed sketch save keeps the page");
+  assert.match(chrome.element("outdatedText").textContent, /could not save your sketches/);
+  assert.equal(chrome.element("outdatedReload").disabled, false);
+
+  chrome.element("outdatedReload").click();
+  await flushPromises();
+  await flushAnswer(true);
+  assert.equal(chrome.reloadCount(), 1);
+});
+
 // Every sentence has to be true in the case it is shown: a deliberate stop is not an update, and
 // a server that never said why was neither.
 test("the outdated banner says what actually happened to the server", async () => {

@@ -317,6 +317,8 @@ const TERMINAL_SEND_FAILED_COPY =
 const HEALTH_NO_ANSWER_TITLE = "Lavish did not answer.";
 const HEALTH_NO_ANSWER_COPY =
   "Lavish did not answer the check, so this page cannot tell whether it is running. Try again in a moment.";
+const SKETCH_UNSAVED_TITLE = "Your sketches are not saved yet.";
+const SKETCH_UNSAVED_COPY = "Lavish could not save your sketches, so this page stays open. Try again in a moment.";
 let artifactLoadToken = "";
 let artifactLoadRevision = Number(sessionData.initialArtifactRevision) || 0;
 let artifactLoadRequestSequence = Number(sessionData.initialArtifactLoadSequence) || 0;
@@ -2340,9 +2342,8 @@ function checkServerThenReload(failureTitle, stillDownCopy) {
     try {
       outcome = await probeChromeHealth();
       if (outcome === "running") {
-        navigating = true;
-        await flushWhiteboardsBeforeChromeReload();
-        location.reload();
+        navigating = await flushWhiteboardsBeforeChromeReload();
+        if (navigating) location.reload();
       }
     } finally {
       // Every path that does not navigate hands the control back, including a probe that timed
@@ -2351,9 +2352,14 @@ function checkServerThenReload(failureTitle, stillDownCopy) {
         checking = false;
         if (layoutGateAction) layoutGateAction.disabled = false;
         if (cycle === layoutGateCycle) {
-          const answered = outcome !== "no-answer";
-          if (layoutGateTitle) layoutGateTitle.textContent = answered ? failureTitle : HEALTH_NO_ANSWER_TITLE;
-          if (layoutGateCopy) layoutGateCopy.textContent = answered ? stillDownCopy : HEALTH_NO_ANSWER_COPY;
+          const [title, copy] =
+            outcome === "running"
+              ? [SKETCH_UNSAVED_TITLE, SKETCH_UNSAVED_COPY]
+              : outcome === "no-answer"
+                ? [HEALTH_NO_ANSWER_TITLE, HEALTH_NO_ANSWER_COPY]
+                : [failureTitle, stillDownCopy];
+          if (layoutGateTitle) layoutGateTitle.textContent = title;
+          if (layoutGateCopy) layoutGateCopy.textContent = copy;
         }
       }
     }
@@ -3589,6 +3595,7 @@ function postToInlineWhiteboard(index, message) {
 
 function postToWhiteboard(index, placement, message) {
   if (placement === "overlay") postToWhiteboardOverlay(message);
+  else if (placement === "sketch") postToSketch(message);
   else postToInlineWhiteboard(index, message);
 }
 
@@ -3778,21 +3785,30 @@ function finishWhiteboardFlush(index, message, placement) {
   flush.resolve(Boolean(message.ok));
 }
 
+// Resolves false when the sketch layer did not confirm its save: its unsaved drawings live only in
+// its frame, so the caller keeps the page open instead of reloading them away.
 async function flushWhiteboardsBeforeChromeReload() {
   const flushes = [];
   for (const [index, channel] of inlineWhiteboardChannels) {
     if (channel.initialized && index !== overlayIndex) flushes.push(beginWhiteboardFlush(index, "inline"));
   }
   if (overlayIndex !== null && overlayFrameReady) flushes.push(beginWhiteboardFlush(overlayIndex, "overlay"));
-  if (flushes.length === 0) return;
+  if (flushes.length === 0 && !sketchReady) return true;
+  const sketchSaved = sketchReady ? beginWhiteboardFlush(0, "sketch") : true;
   let timeout;
-  await Promise.race([
-    Promise.all(flushes),
-    new Promise((resolve) => {
-      timeout = setTimeout(resolve, 1500);
-    }),
+  const timedOut = new Promise((resolve) => {
+    timeout = setTimeout(() => {
+      // An unanswered sketch flush counts as unsaved; the next reload attempt asks again.
+      whiteboardFlushes.delete(whiteboardFlushKey(0, "sketch"));
+      resolve(false);
+    }, 1500);
+  });
+  const [, saved] = await Promise.all([
+    Promise.race([Promise.all(flushes), timedOut]),
+    Promise.race([sketchSaved, timedOut]),
   ]);
   clearTimeout(timeout);
+  return saved;
 }
 
 async function flushInlineWhiteboards() {
@@ -4282,6 +4298,7 @@ function handleSketchMessage(message) {
       () => postToSketch({ type: "lavish-sketch:saveResult", ok: false }),
     );
   }
+  if (message.type === "lavish-whiteboard:flushComplete") finishWhiteboardFlush(0, message, "sketch");
   if (message.type === "lavish-sketch:draft") {
     sketchDraft = Boolean(message.draft);
     sketchCommentDraft = Boolean(message.commentDraft);
@@ -4425,7 +4442,11 @@ async function reloadChromeAfterServerRestart(reason = "") {
     return;
   }
 
-  await flushWhiteboardsBeforeChromeReload();
+  if (!(await flushWhiteboardsBeforeChromeReload())) {
+    chromeRestartReloadPromise = null;
+    setChromeOutdated(true, reason);
+    return;
+  }
   location.reload();
 }
 
@@ -4443,9 +4464,8 @@ async function reloadChromeForOutdatedBanner() {
   try {
     outcome = await probeChromeHealth();
     if (outcome === "running") {
-      navigating = true;
-      await flushWhiteboardsBeforeChromeReload();
-      location.reload();
+      navigating = await flushWhiteboardsBeforeChromeReload();
+      if (navigating) location.reload();
     }
   } finally {
     if (!navigating) {
@@ -4453,9 +4473,11 @@ async function reloadChromeForOutdatedBanner() {
       if (outdatedReloadButton) outdatedReloadButton.disabled = false;
       if (outdatedText && generation === chromeOutdatedGeneration) {
         outdatedText.textContent =
-          outcome === "no-answer"
-            ? HEALTH_NO_ANSWER_COPY
-            : "Lavish is still not running. Start it again, then use Check and reload.";
+          outcome === "running"
+            ? SKETCH_UNSAVED_COPY
+            : outcome === "no-answer"
+              ? HEALTH_NO_ANSWER_COPY
+              : "Lavish is still not running. Start it again, then use Check and reload.";
       }
     }
   }

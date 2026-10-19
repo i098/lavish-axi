@@ -30,6 +30,8 @@ const state = {
   saving: null,
   savedVersion: -1,
   unsaved: false,
+  /** @type {string[]} */
+  flushIds: [],
   commentDraft: false,
   reportedDraft: "",
   /** @type {null | ((active: boolean) => void)} */
@@ -103,6 +105,24 @@ function handleSaveResult(ok) {
   state.saving = null;
   if (ok) saveIfChanged();
   else window.setTimeout(saveIfChanged, SAVE_RETRY_MS);
+  answerFlushes();
+}
+
+// The chrome asks before it reloads the page: save now, and answer once no save is in flight.
+// A failed save, or a change still being drawn, answers not saved so the page stays open.
+function flushSaveNow(msg) {
+  const flushId = String(msg.flushId || "");
+  if (!flushId) return;
+  state.flushIds.push(flushId);
+  saveIfChanged();
+  answerFlushes();
+}
+
+function answerFlushes() {
+  if (state.saving !== null) return;
+  for (const flushId of state.flushIds.splice(0)) {
+    post({ type: "lavish-whiteboard:flushComplete", flushId, ok: !state.unsaved });
+  }
 }
 
 function applyScroll() {
@@ -369,6 +389,7 @@ export function startSketchFrame() {
       resolve?.({ ok: Boolean(msg.ok), error: String(msg.error || "") });
     }
     if (msg.type === "lavish-sketch:saveResult") handleSaveResult(Boolean(msg.ok));
+    if (msg.type === "lavish-whiteboard:flush") flushSaveNow(msg);
   });
   // The chrome only lets pointer events reach this frame in sketch mode, so every wheel over the
   // canvas is the reviewer scrolling the page under the sketches, never canvas zoom.
