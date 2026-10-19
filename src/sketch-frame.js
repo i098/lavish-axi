@@ -31,7 +31,7 @@ const state = {
   savedVersion: -1,
   unsaved: false,
   commentDraft: false,
-  reportedDraft: false,
+  reportedDraft: "",
   /** @type {null | ((active: boolean) => void)} */
   setActive: null,
   /** @type {Map<string, (result: { ok: boolean, error?: string }) => void>} */
@@ -72,9 +72,10 @@ function mintAttemptId() {
 
 function reportDraft() {
   const draft = state.commentDraft || state.unsaved;
-  if (draft === state.reportedDraft) return;
-  state.reportedDraft = draft;
-  post({ type: "lavish-sketch:draft", draft });
+  const reported = `${draft}:${state.commentDraft}`;
+  if (reported === state.reportedDraft) return;
+  state.reportedDraft = reported;
+  post({ type: "lavish-sketch:draft", draft, commentDraft: state.commentDraft });
 }
 
 // A finished change saves at once, one save at a time: whatever changes while a save is in flight

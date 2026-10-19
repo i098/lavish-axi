@@ -9374,6 +9374,28 @@ test("Cmd/Ctrl+; toggles sketch mode from the chrome, the artifact SDK and the s
   assert.equal(annotate["aria-pressed"], annotationBefore);
 });
 
+test("the sketch hotkey does nothing while the sketch comment card has unsent text", async () => {
+  const { chrome, send } = await sketchHarness(async () => ({ ok: true, json: async () => ({ whiteboard: null }) }));
+  const sketchSwitch = chrome.element("sketchSwitch");
+  sketchSwitch.onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  send({ type: "lavish-sketch:draft", channelId: "tok", draft: true, commentDraft: true });
+
+  chrome.dispatchDocumentKeydown({ key: ";", metaKey: true });
+  chrome.sendFrameMessage({ type: "lavish:toggleSketchMode" });
+  send({ type: "lavish-sketch:toggleSketchMode", channelId: "tok" });
+  assert.equal(sketchSwitch["aria-pressed"], "true");
+
+  // Unsaved strokes alone never block it, and the switch click keeps working.
+  send({ type: "lavish-sketch:draft", channelId: "tok", draft: true, commentDraft: false });
+  chrome.dispatchDocumentKeydown({ key: ";", metaKey: true });
+  assert.equal(sketchSwitch["aria-pressed"], "false");
+  send({ type: "lavish-sketch:draft", channelId: "tok", draft: true, commentDraft: true });
+  sketchSwitch.onclick();
+  assert.equal(sketchSwitch["aria-pressed"], "true");
+});
+
 test("the sketch hotkey ignores plain, shifted and annotate-hotkey keystrokes and an ended session", async () => {
   const { chrome } = await sketchHarness(async () => ({ ok: true, json: async () => ({ whiteboard: null }) }));
   const sketchSwitch = chrome.element("sketchSwitch");

@@ -4081,6 +4081,7 @@ let sketchActive = false;
 let sketchChannelId = "";
 let sketchReady = false;
 let sketchDraft = false;
+let sketchCommentDraft = false;
 const SKETCH_MAX_PREPARATIONS = 8;
 /** @type {Map<string, FeedbackPreparation>} */
 const sketchPreparations = new Map();
@@ -4119,6 +4120,7 @@ function resetSketchLayer() {
   sketchReady = false;
   sketchFrame.classList.remove("sketch-ready");
   sketchDraft = false;
+  sketchCommentDraft = false;
   sketchFrame.hidden = true;
   sketchFrame.src = "about:blank";
   setSketchActive(false);
@@ -4280,7 +4282,10 @@ function handleSketchMessage(message) {
       () => postToSketch({ type: "lavish-sketch:saveResult", ok: false }),
     );
   }
-  if (message.type === "lavish-sketch:draft") sketchDraft = Boolean(message.draft);
+  if (message.type === "lavish-sketch:draft") {
+    sketchDraft = Boolean(message.draft);
+    sketchCommentDraft = Boolean(message.commentDraft);
+  }
   if (ended) return;
   if (message.type === "lavish-sketch:scrollBy") {
     postToFrame({ type: "lavish:scrollBy", x: Number(message.x) || 0, y: Number(message.y) || 0 });
@@ -4296,11 +4301,15 @@ function handleSketchMessage(message) {
   if (message.type === "lavish-sketch:release") releaseSketchPreparation(sketchAttemptId(message));
   if (message.type === "lavish-sketch:comment") queueSketchComment(message);
   if (message.type === "lavish-sketch:toggleAnnotationMode") toggleAnnotationMode();
-  if (message.type === "lavish-sketch:toggleSketchMode") toggleSketchMode();
+  if (message.type === "lavish-sketch:toggleSketchMode") toggleSketchModeByHotkey();
 }
 
 function toggleSketchMode() {
   if (!ended && !terminalSubmission) setSketchActive(!sketchActive);
+}
+
+function toggleSketchModeByHotkey() {
+  if (!sketchCommentDraft) toggleSketchMode();
 }
 
 sketchSwitch.onclick = toggleSketchMode;
@@ -4544,7 +4553,7 @@ window.addEventListener("message", (event) => {
   if (msg.type === "lavish:endSession") endSession();
   if (msg.type === "lavish:revisions") applyRevisionMessage(msg);
   if (msg.type === "lavish:toggleAnnotationMode") toggleAnnotationMode();
-  if (msg.type === "lavish:toggleSketchMode") toggleSketchMode();
+  if (msg.type === "lavish:toggleSketchMode") toggleSketchModeByHotkey();
   if (msg.type === "lavish:editQueuedAnchor") editQueuedAnchor(String(msg.selector || ""));
 });
 
@@ -4875,7 +4884,7 @@ document.addEventListener(
   (event) => {
     if (!isModeToggleHotkeyEvent(event, SKETCH_TOGGLE_HOTKEY_KEY)) return;
     event.preventDefault();
-    toggleSketchMode();
+    toggleSketchModeByHotkey();
   },
   true,
 );
