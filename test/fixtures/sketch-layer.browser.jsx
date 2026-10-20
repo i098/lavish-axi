@@ -117,6 +117,11 @@ async function run() {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
   await sleep(50);
   const draftWhileTyping = lastDraft();
+  // A switch or hotkey the chrome refuses for this unsent comment moves focus back to it.
+  textarea.blur();
+  toChrome({ type: "lavish-sketch:focusComment" });
+  await sleep(50);
+  const commentRefocused = document.activeElement === textarea;
   const scrollBysBefore = count("lavish-sketch:scrollBy");
   const textareaWheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
   textarea.dispatchEvent(textareaWheel);
@@ -204,6 +209,7 @@ async function run() {
     newerCardText,
     textareaReadOnlyWhileBusy,
     typedLength,
+    commentRefocused,
   };
 }
 

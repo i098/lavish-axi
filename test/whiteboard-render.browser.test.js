@@ -248,4 +248,6 @@ test("the sketch layer turns a selected sketch into a page-anchored comment", { 
   assert.equal(result.textareaReadOnlyWhileBusy, true);
   // The comment field stops at the limit the chrome bounds a queued comment to.
   assert.equal(result.typedLength, SKETCH_COMMENT_MAX_CHARS);
+  // A refused switch or hotkey moves focus back to the unsent comment.
+  assert.equal(result.commentRefocused, true);
 });

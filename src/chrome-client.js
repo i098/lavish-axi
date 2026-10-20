@@ -4325,8 +4325,15 @@ function handleSketchMessage(message) {
 }
 
 // Leaving sketch mode unmounts the sketch comment card, so unsent comment text holds the mode.
+function holdForSketchComment() {
+  if (!sketchCommentDraft) return false;
+  sketchFrame.focus();
+  postToSketch({ type: "lavish-sketch:focusComment" });
+  return true;
+}
+
 function toggleSketchMode() {
-  if (!ended && !terminalSubmission && !sketchCommentDraft) setSketchActive(!sketchActive);
+  if (!ended && !terminalSubmission && !holdForSketchComment()) setSketchActive(!sketchActive);
 }
 
 sketchSwitch.onclick = toggleSketchMode;
@@ -4707,7 +4714,7 @@ async function uploadAttachment(message, reportResult = postToFrame, signal) {
 loadFrame();
 
 function toggleAnnotationMode() {
-  if (ended || terminalSubmission || (sketchActive && sketchCommentDraft)) return;
+  if (ended || terminalSubmission || (sketchActive && holdForSketchComment())) return;
   annotationOverridden = true;
   annotation = sketchActive || !annotation;
   if (sketchActive) setSketchActive(false);

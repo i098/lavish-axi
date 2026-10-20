@@ -9468,6 +9468,35 @@ test("no switch or hotkey leaves sketch mode while the sketch comment card has u
   assert.equal(sketchSwitch["aria-pressed"], "false");
 });
 
+test("a switch or hotkey refused by an unsent sketch comment moves focus to that comment", async () => {
+  const { chrome, sketchFrame, posted, send } = await sketchHarness(async () => ({
+    ok: true,
+    json: async () => ({ whiteboard: null }),
+  }));
+  chrome.element("sketchSwitch").onclick();
+  send({ type: "lavish-sketch:ready", channelToken: "tok" });
+  await flushPromises();
+  send({ type: "lavish-sketch:draft", channelId: "tok", draft: true, commentDraft: true });
+
+  const refusals = [
+    () => chrome.element("sketchSwitch").onclick(),
+    () => chrome.element("annotation").click(),
+    () => chrome.dispatchDocumentKeydown({ key: ";", metaKey: true }),
+    () => chrome.sendFrameMessage({ type: "lavish:toggleAnnotationMode" }),
+    () => send({ type: "lavish-sketch:toggleSketchMode", channelId: "tok" }),
+  ];
+  for (const refuse of refusals) {
+    sketchFrame.focused = false;
+    const before = posted.length;
+    refuse();
+    assert.equal(sketchFrame.focused, true);
+    assert.deepEqual(
+      posted.slice(before).map((message) => message.type),
+      ["lavish-sketch:focusComment"],
+    );
+  }
+});
+
 test("the sketch hotkey ignores plain, shifted and annotate-hotkey keystrokes and an ended session", async () => {
   const { chrome } = await sketchHarness(async () => ({ ok: true, json: async () => ({ whiteboard: null }) }));
   const sketchSwitch = chrome.element("sketchSwitch");

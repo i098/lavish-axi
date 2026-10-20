@@ -390,6 +390,7 @@ export function startSketchFrame() {
       resolve?.({ ok: Boolean(msg.ok), error: String(msg.error || "") });
     }
     if (msg.type === "lavish-sketch:saveResult") handleSaveResult(Boolean(msg.ok));
+    if (msg.type === "lavish-sketch:focusComment") document.querySelector(".sk-card textarea")?.focus();
     if (msg.type === "lavish-whiteboard:flush") flushSaveNow(msg);
   });
   // The chrome only lets pointer events reach this frame in sketch mode, so every wheel over the
