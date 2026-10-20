@@ -1,4 +1,4 @@
-/* global document, Event, HTMLTextAreaElement, KeyboardEvent, location, window, WheelEvent */
+/* global document, Event, fetch, HTMLTextAreaElement, KeyboardEvent, location, window, WheelEvent */
 
 // Mounts the real sketch layer as a top-level page and plays the chrome's side of the channel:
 // the frame posts to `window.top`, which is this window. Select-all stands in for the reviewer
@@ -51,11 +51,17 @@ function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+// Chrome runs this page under --virtual-time-budget, where timers skip ahead whenever the page is
+// idle. Queue waits on Excalidraw's PNG export, which Chrome encodes in real time off the main
+// thread, so a timer-only poll could spend its whole 5s budget in a few real milliseconds on a slow
+// runner. Each attempt also waits on `/tick`, which answers after 25 real ms (a pending fetch pauses
+// virtual time), so the deadline is at least 5s of real time as well.
 async function until(read, what) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const value = read();
     if (value) return value;
     await sleep(25);
+    await fetch("/tick", { cache: "no-store" });
   }
   throw new Error(`timed out waiting for ${what}`);
 }

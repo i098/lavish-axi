@@ -129,6 +129,10 @@ async function runBrowserFixture(t, fixtureName) {
       try {
         const url = new URL(request.url, "http://127.0.0.1");
         const pathname = url.pathname;
+        if (pathname === "/tick") {
+          setTimeout(() => response.writeHead(204, { "cache-control": "no-store" }).end(), 25);
+          return;
+        }
         if (pathname === "/result") {
           const value = String(url.searchParams.get("value") || "")
             .replaceAll("&", "&amp;")
