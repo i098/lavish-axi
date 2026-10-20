@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
+import { SKETCH_COMMENT_MAX_CHARS } from "../src/artifact-sdk.js";
 import { chatEntryForPrompt } from "../src/chat-messages.js";
 import { createChromeHtml } from "../src/server.js";
 
@@ -17,13 +18,14 @@ const servedChromeIds = new Set(
   ),
 );
 
-/** @typedef {{ key: string, file: string, layoutGateEnabled?: boolean, layoutGateMaxHoldMs?: number, modeToggleHotkeyKey?: string, sketchToggleHotkeyKey?: string, initialChat?: any[], initialChatAckIds?: string[], initialChatRevision?: number, initialLayoutWarnings?: any[], chromeLoadToken?: string, initialArtifactRevision?: number, initialArtifactLoadToken?: string, initialArtifactLoadSequence?: number, attachmentMaxBytes?: number, attachmentMaxCount?: number, attachmentAcceptedMime?: string[], initialEnded?: boolean, initialEndedBy?: string | null, revisionPalette?: { hex: string, borderStyle: string, pattern: string }[] }} HarnessSessionData */
+/** @typedef {{ key: string, file: string, layoutGateEnabled?: boolean, layoutGateMaxHoldMs?: number, modeToggleHotkeyKey?: string, sketchToggleHotkeyKey?: string, sketchCommentMaxChars?: number, initialChat?: any[], initialChatAckIds?: string[], initialChatRevision?: number, initialLayoutWarnings?: any[], chromeLoadToken?: string, initialArtifactRevision?: number, initialArtifactLoadToken?: string, initialArtifactLoadSequence?: number, attachmentMaxBytes?: number, attachmentMaxCount?: number, attachmentAcceptedMime?: string[], initialEnded?: boolean, initialEndedBy?: string | null, revisionPalette?: { hex: string, borderStyle: string, pattern: string }[] }} HarnessSessionData */
 /** @type {HarnessSessionData} */
 const defaultSessionData = {
   key: "abc",
   file: "/tmp/artifact.html",
   modeToggleHotkeyKey: "i",
   sketchToggleHotkeyKey: ";",
+  sketchCommentMaxChars: SKETCH_COMMENT_MAX_CHARS,
   attachmentAcceptedMime: ["image/png", "image/jpeg", "image/webp"],
 };
 

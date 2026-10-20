@@ -30,6 +30,7 @@ import {
   planClipboardPaste,
   MODE_TOGGLE_HOTKEY_KEY,
   SKETCH_TOGGLE_HOTKEY_KEY,
+  SKETCH_COMMENT_MAX_CHARS,
 } from "./artifact-sdk.js";
 import {
   activeLayoutWarningCount,
@@ -3099,6 +3100,7 @@ export function createChromeHtml(
     layoutGateEnabled,
     modeToggleHotkeyKey: MODE_TOGGLE_HOTKEY_KEY,
     sketchToggleHotkeyKey: SKETCH_TOGGLE_HOTKEY_KEY,
+    sketchCommentMaxChars: SKETCH_COMMENT_MAX_CHARS,
     attachmentMaxBytes,
     attachmentMaxCount,
     attachmentAcceptedMime: acceptedMime,

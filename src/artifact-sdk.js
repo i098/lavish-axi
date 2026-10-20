@@ -11,6 +11,9 @@ export const MODE_TOGGLE_HOTKEY_KEY = "i";
 // Cmd/Ctrl+; toggles Sketch. Not bound by Chrome, Safari or Dia on macOS, nor by Excalidraw.
 export const SKETCH_TOGGLE_HOTKEY_KEY = ";";
 
+// A sketch comment never exceeds this; the sketch layer's field enforces it, the chrome bounds it.
+export const SKETCH_COMMENT_MAX_CHARS = 4000;
+
 export function isModeToggleHotkeyEvent(event, key = MODE_TOGGLE_HOTKEY_KEY) {
   if (event.shiftKey || event.altKey) return false;
   return Boolean(event.metaKey || event.ctrlKey) && String(event.key || "").toLowerCase() === key;

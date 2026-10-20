@@ -109,6 +109,10 @@ async function run() {
 
   document.querySelector(".sk-comment").click();
   const textarea = await until(() => document.querySelector(".sk-card textarea"), "the comment card");
+  // Typing past the comment limit stops at the limit, so Queue never cuts what the field shows.
+  textarea.focus();
+  document.execCommand("insertText", false, "x".repeat(4001));
+  const typedLength = textarea.value.length;
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(textarea, "Make this primary");
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
   await sleep(50);
@@ -199,6 +203,7 @@ async function run() {
     cardClosed: !document.querySelector(".sk-card"),
     newerCardText,
     textareaReadOnlyWhileBusy,
+    typedLength,
   };
 }
 

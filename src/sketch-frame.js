@@ -13,7 +13,7 @@ import { Excalidraw, exportToBlob, hashElementsVersion, restore } from "@excalid
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-import { isModeToggleHotkeyEvent, SKETCH_TOGGLE_HOTKEY_KEY } from "./artifact-sdk.js";
+import { isModeToggleHotkeyEvent, SKETCH_COMMENT_MAX_CHARS, SKETCH_TOGGLE_HOTKEY_KEY } from "./artifact-sdk.js";
 import { describeSketchSelection } from "./whiteboard-core.js";
 
 const SAVE_RETRY_MS = 2000;
@@ -224,6 +224,7 @@ function CommentCard({ sketch, onClose }) {
     React.createElement("textarea", {
       ref: inputRef,
       value: text,
+      maxLength: SKETCH_COMMENT_MAX_CHARS,
       placeholder: "Tell the agent what this sketch means...",
       // Words typed while Queue runs would miss the captured comment and vanish when the card closes.
       readOnly: busy,

@@ -27,6 +27,7 @@ const initialChatAckIds = Array.isArray(sessionData.initialChatAckIds) ? session
 const initialChatRevision = parseChatRevision(sessionData.initialChatRevision) || 0;
 const MODE_TOGGLE_HOTKEY_KEY = String(sessionData.modeToggleHotkeyKey || "").toLowerCase();
 const SKETCH_TOGGLE_HOTKEY_KEY = String(sessionData.sketchToggleHotkeyKey || "").toLowerCase();
+const SKETCH_COMMENT_MAX_CHARS = Number(sessionData.sketchCommentMaxChars);
 const attachmentMaxBytes = Number(sessionData.attachmentMaxBytes) || 0;
 const attachmentMaxCount = Number(sessionData.attachmentMaxCount) || 4;
 // Threaded from the server's single accepted-image list, which also drives the
@@ -4218,9 +4219,10 @@ function releaseSketchPreparation(attemptId) {
 async function queueSketchComment(message) {
   const attemptId = sketchAttemptId(message);
   const reply = (ok, error = "") => postToSketch({ type: "lavish-sketch:commentResult", attemptId, ok, error });
+  // The sketch layer's field already enforces this limit; the slice only bounds an untrusted frame.
   const comment = String(message.comment || "")
     .trim()
-    .slice(0, 4000);
+    .slice(0, SKETCH_COMMENT_MAX_CHARS);
   const preparation = sketchPreparations.get(attemptId);
   sketchPreparations.delete(attemptId);
   if (!preparation || !comment) {
