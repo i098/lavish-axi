@@ -1194,6 +1194,25 @@ test("describeSketchSelection marks the tip of a rotated arrow where it is drawn
   assert.deepEqual(sketch.bounds, { x: 350, y: 350, width: 0, height: 100 });
 });
 
+test("describeSketchSelection marks the start of an arrow whose only arrowhead is at its start", () => {
+  const arrow = {
+    id: "arrow",
+    type: "arrow",
+    x: 300,
+    y: 400,
+    width: 100,
+    height: 0,
+    angle: Math.PI / 2,
+    startArrowhead: "arrow",
+    endArrowhead: null,
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+  };
+  assert.deepEqual(describeSketchSelection([arrow], ["arrow"]).point, { x: 350, y: 350 });
+});
+
 test("describeSketchSelection lists every selected shape so the image covers what the target describes", () => {
   const elements = Array.from({ length: 60 }, (_, i) => rect(`r${i}`, { x: i * 10, y: 0, width: 5, height: 5 }));
   const sketch = describeSketchSelection(

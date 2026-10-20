@@ -1067,7 +1067,8 @@ export function describeSketchSelection(elements, selectedIds) {
   let point = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
   if (single?.type === "arrow" && Array.isArray(single.points) && single.points.length > 0) {
     const corners = elementCorners(single);
-    const [[tipX, tipY]] = turnAboutBoxCentre(corners.slice(-1), cornersBox(corners), Number(single.angle) || 0);
+    const end = single.startArrowhead && !single.endArrowhead ? corners[0] : corners[corners.length - 1];
+    const [[tipX, tipY]] = turnAboutBoxCentre([end], cornersBox(corners), Number(single.angle) || 0);
     point = { x: tipX, y: tipY };
   }
   return {
