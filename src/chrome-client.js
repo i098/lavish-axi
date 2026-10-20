@@ -4319,15 +4319,12 @@ function handleSketchMessage(message) {
   if (message.type === "lavish-sketch:release") releaseSketchPreparation(sketchAttemptId(message));
   if (message.type === "lavish-sketch:comment") queueSketchComment(message);
   if (message.type === "lavish-sketch:toggleAnnotationMode") toggleAnnotationMode();
-  if (message.type === "lavish-sketch:toggleSketchMode") toggleSketchModeByHotkey();
+  if (message.type === "lavish-sketch:toggleSketchMode") toggleSketchMode();
 }
 
+// Leaving sketch mode unmounts the sketch comment card, so unsent comment text holds the mode.
 function toggleSketchMode() {
-  if (!ended && !terminalSubmission) setSketchActive(!sketchActive);
-}
-
-function toggleSketchModeByHotkey() {
-  if (!sketchCommentDraft) toggleSketchMode();
+  if (!ended && !terminalSubmission && !sketchCommentDraft) setSketchActive(!sketchActive);
 }
 
 sketchSwitch.onclick = toggleSketchMode;
@@ -4576,7 +4573,7 @@ window.addEventListener("message", (event) => {
   if (msg.type === "lavish:endSession") endSession();
   if (msg.type === "lavish:revisions") applyRevisionMessage(msg);
   if (msg.type === "lavish:toggleAnnotationMode") toggleAnnotationMode();
-  if (msg.type === "lavish:toggleSketchMode") toggleSketchModeByHotkey();
+  if (msg.type === "lavish:toggleSketchMode") toggleSketchMode();
   if (msg.type === "lavish:editQueuedAnchor") editQueuedAnchor(String(msg.selector || ""));
 });
 
@@ -4708,7 +4705,7 @@ async function uploadAttachment(message, reportResult = postToFrame, signal) {
 loadFrame();
 
 function toggleAnnotationMode() {
-  if (ended || terminalSubmission) return;
+  if (ended || terminalSubmission || (sketchActive && sketchCommentDraft)) return;
   annotationOverridden = true;
   annotation = sketchActive || !annotation;
   if (sketchActive) setSketchActive(false);
@@ -4907,7 +4904,7 @@ document.addEventListener(
   (event) => {
     if (!isModeToggleHotkeyEvent(event, SKETCH_TOGGLE_HOTKEY_KEY)) return;
     event.preventDefault();
-    toggleSketchModeByHotkey();
+    toggleSketchMode();
   },
   true,
 );
