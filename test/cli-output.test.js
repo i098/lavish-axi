@@ -105,6 +105,18 @@ function assertObservablePollWakePath(text) {
   assert.doesNotMatch(text, /foreground command may run.*run the poll as a background task/i);
 }
 
+test("home help names LAVISH_AXI_ALLOWED_HOSTS for the 403 forbidden host case", () => {
+  const output = createHomeOutput({ bin: "lavish-axi", sessions: [] });
+  const hostHelp = output.help.find((item) => item.includes("LAVISH_AXI_ALLOWED_HOSTS"));
+
+  assert.ok(hostHelp, "home help names the allowlist variable");
+  assert.match(hostHelp, /403 `forbidden host`/);
+  assert.match(hostHelp, /reverse-proxy/);
+  assert.match(hostHelp, /README's Allowed hosts section/);
+  assert.doesNotMatch(hostHelp, /whitespace-separated/);
+  assert.match(hostHelp, /`lavish-axi stop`/);
+});
+
 test("CLI version tracks package.json so release-please bumps reach the published binary", async () => {
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(VERSION, packageJson.version);
@@ -367,6 +379,8 @@ test("design output prints copy-pasteable CDN URLs so agents can opt in to Daisy
   assert.match(output.design.summary, /^Use this .*fallback only if/i);
   assert.match(output.design.summary, /no design direction/i);
   assert.match(output.design.summary, /check first/i);
+  assert.match(output.design.summary, /start it with `<!doctype html>`/);
+  assert.match(output.design.summary, /quirks mode/);
   assert.match(output.design.cdn_snippet, /cdn\.jsdelivr\.net\/npm\/daisyui@/);
   assert.match(output.design.cdn_snippet, /cdn\.jsdelivr\.net\/npm\/daisyui@.*\/themes\.css/);
   assert.match(output.design.cdn_snippet, /cdn\.jsdelivr\.net\/npm\/@tailwindcss\/browser@/);
