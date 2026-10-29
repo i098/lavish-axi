@@ -186,6 +186,37 @@ async function run() {
   await sleep(50);
   const hotkey = { toggled: count("lavish-sketch:toggleAnnotationMode") - togglesBefore, editorSawHotkey };
 
+  // Undo the delete so a selection exists again.
+  document
+    .querySelector(".excalidraw")
+    .dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", ...SHORTCUT_MODIFIER, bubbles: true }));
+  await sleep(150);
+  selectAll();
+  await until(() => document.querySelector(".sk-comment"), "the Comment button before deselect");
+  await typeInto("keep me");
+  // Clicking empty canvas clears the selection, which must not erase the unsent comment.
+  const canvas = document.querySelector(".excalidraw__canvas.interactive");
+  const click = (type) =>
+    canvas.dispatchEvent(
+      new PointerEvent(type, {
+        clientX: 20,
+        clientY: 20,
+        button: 0,
+        buttons: type === "pointerdown" ? 1 : 0,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        bubbles: true,
+      }),
+    );
+  click("pointerdown");
+  await sleep(50);
+  click("pointerup");
+  await sleep(150);
+  const textAfterDeselect = document.querySelector(".sk-card textarea")?.value ?? null;
+  document.querySelector(".sk-card .sk-cancel")?.click();
+  await sleep(50);
+
   const pngSignature = Array.from(comment.png.slice(0, 4)).join(",");
   return {
     pass: true,
@@ -207,6 +238,7 @@ async function run() {
     pngSignature,
     cardClosed: !document.querySelector(".sk-card"),
     newerCardText,
+    textAfterDeselect,
     textareaReadOnlyWhileBusy,
     typedLength,
     commentRefocused,

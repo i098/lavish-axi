@@ -244,6 +244,8 @@ test("the sketch layer turns a selected sketch into a page-anchored comment", { 
   assert.equal(result.cardClosed, true);
   // A late success from a cancelled attempt leaves the newer card and its unsent text alone.
   assert.equal(result.newerCardText, "second note");
+  // Deselecting the canvas keeps a card that holds unsent text.
+  assert.equal(result.textAfterDeselect, "keep me");
   // Text typed while Queue runs is never captured, so the field refuses it.
   assert.equal(result.textareaReadOnlyWhileBusy, true);
   // The comment field stops at the limit the chrome bounds a queued comment to.

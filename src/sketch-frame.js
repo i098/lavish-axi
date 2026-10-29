@@ -269,6 +269,8 @@ function SketchApp({ elements, files, startActive }) {
 
   function onChange(sceneElements, appState) {
     saveIfChanged();
+    // An unsent comment keeps its card: clearing the selection or touching the drawing must not drop the typed text.
+    if (state.commentDraft) return;
     const next = isEditing(appState) ? null : describeSketchSelection(sceneElements, liveSelectedIds(appState));
     setSketch((previous) => {
       if (!next) return null;
