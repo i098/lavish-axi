@@ -193,18 +193,21 @@ function CommentCard({ sketch, onClose }) {
     setError("");
     const attemptId = mintAttemptId();
     try {
+      // The canvas stays editable while the card is open: describe the sketch as it is now, not as it was when the card opened.
+      const target = describeSketchSelection(state.api.getSceneElements(), sketch.ids);
+      if (!target) throw new Error("This sketch was deleted. Cancel and select another.");
       // Tell the chrome a comment is coming before the slow export, so Send & End waits for it.
       post({ type: "lavish-sketch:prepare", attemptId });
       let png;
       try {
-        png = await selectionPng(sketch.ids);
+        png = await selectionPng(target.ids);
       } catch (failure) {
         post({ type: "lavish-sketch:release", attemptId });
         throw failure;
       }
       const result = await new Promise((resolve) => {
         state.commentResults.set(attemptId, resolve);
-        post({ type: "lavish-sketch:comment", attemptId, comment, ...sketch, png });
+        post({ type: "lavish-sketch:comment", attemptId, comment, ...target, png });
       });
       if (result.ok) {
         if (mounted.current) onClose();

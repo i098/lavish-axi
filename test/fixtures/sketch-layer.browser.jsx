@@ -214,8 +214,25 @@ async function run() {
   click("pointerup");
   await sleep(150);
   const textAfterDeselect = document.querySelector(".sk-card textarea")?.value ?? null;
-  document.querySelector(".sk-card .sk-cancel")?.click();
-  await sleep(50);
+  // Moving the sketch while the card is open must move the queued target with it.
+  selectAll();
+  await sleep(100);
+  const nudge = () =>
+    document
+      .querySelector(".excalidraw")
+      .dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", code: "ArrowRight", shiftKey: true, bubbles: true }),
+      );
+  nudge();
+  await sleep(100);
+  const queuedBefore = count("lavish-sketch:comment");
+  document.querySelector(".sk-card .sk-queue").click();
+  const movedComment = await until(
+    () => fromFrame.filter((m) => m.type === "lavish-sketch:comment").at(queuedBefore),
+    "the comment after a move",
+  );
+  toChrome({ type: "lavish-sketch:commentResult", attemptId: movedComment.attemptId, ok: true });
+  await sleep(100);
 
   const pngSignature = Array.from(comment.png.slice(0, 4)).join(",");
   return {
@@ -239,6 +256,9 @@ async function run() {
     cardClosed: !document.querySelector(".sk-card"),
     newerCardText,
     textAfterDeselect,
+    movedFromX: RECT.x,
+    movedToX: movedComment.bounds.x,
+    movedPointX: movedComment.point.x,
     textareaReadOnlyWhileBusy,
     typedLength,
     commentRefocused,
